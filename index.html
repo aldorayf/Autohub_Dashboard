@@ -581,7 +581,7 @@
     <script>
         // Google Sheets API configuration
         const GOOGLE_SHEETS_CONFIG = {
-             apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
+                apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
             spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54', // Replace with your actual spreadsheet ID
             ranges: [
                 'Manifest_Data!A:AK',
@@ -1216,6 +1216,15 @@
 
         function renderDashboard() {
             const container = document.getElementById('vesselsContainer');
+            
+            // Save current collapsed states before re-rendering
+            const collapsedStates = {};
+            const vesselHeaders = container.querySelectorAll('.vessel-header');
+            vesselHeaders.forEach(header => {
+                const vesselTitle = header.querySelector('.vessel-title').textContent.trim();
+                collapsedStates[vesselTitle] = header.classList.contains('collapsed');
+            });
+            
             container.innerHTML = '';
             
             // Apply filters and sorting
@@ -1302,6 +1311,18 @@
                 `;
                 
                 container.appendChild(vesselCard);
+                
+                // Restore collapsed state if it was previously collapsed
+                const vesselHeader = vesselCard.querySelector('.vessel-header');
+                const vesselContent = vesselCard.querySelector('.vessel-content');
+                const collapseIcon = vesselCard.querySelector('.collapse-icon');
+                const vesselTitle = vessel.vessel;
+                
+                if (collapsedStates[vesselTitle]) {
+                    vesselHeader.classList.add('collapsed');
+                    vesselContent.classList.add('collapsed');
+                    collapseIcon.textContent = '▶';
+                }
                 
                 // Render tasks for each customer
                 sortedCustomers.forEach(customer => {
