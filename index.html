@@ -94,6 +94,8 @@
             font-size: 1rem;
             transition: all 0.3s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
         }
 
         .btn:hover {
@@ -108,6 +110,14 @@
 
         .btn-secondary:hover {
             background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+        }
+
+        .btn-import {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+
+        .btn-import:hover {
+            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
         }
 
         .container {
@@ -426,11 +436,19 @@
             border-top: 4px solid #e53e3e;
         }
 
+        .stat-card.arriving-week {
+            border-top-color: #4299e1;
+        }
+
         .stat-number {
             font-size: 2.5rem;
             font-weight: bold;
             color: #e53e3e;
             margin-bottom: 0.5rem;
+        }
+
+        .stat-number.arriving-week {
+            color: #4299e1;
         }
 
         .stat-label {
@@ -504,6 +522,14 @@
                 </select>
             </div>
             <div class="filter-group">
+                <label for="sortFilter">Sort by:</label>
+                <select id="sortFilter">
+                    <option value="ets">ETS (Earliest First)</option>
+                    <option value="eta">ETA (Earliest First)</option>
+                    <option value="vessel">Vessel Name</option>
+                </select>
+            </div>
+            <div class="filter-group">
                 <label for="etaFromFilter">ETA From:</label>
                 <input type="date" id="etaFromFilter">
             </div>
@@ -520,7 +546,8 @@
                 <input type="date" id="etsToFilter">
             </div>
             <div>
-                <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
+                <button class="btn" onclick="applyFiltersAndRender()">🔄 Refresh Data</button>
+                <button class="btn btn-import" onclick="importData()">📥 Import Data</button>
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
             </div>
         </div>
@@ -536,13 +563,13 @@
                 <div class="stat-number" id="totalCustomers">0</div>
                 <div class="stat-label">Total Customers</div>
             </div>
+            <div class="stat-card arriving-week">
+                <div class="stat-number arriving-week" id="arrivingThisWeek">0</div>
+                <div class="stat-label">Arriving This Week</div>
+            </div>
             <div class="stat-card">
                 <div class="stat-number" id="pendingTasks">0</div>
                 <div class="stat-label">Pending Tasks</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number" id="completedTasks">0</div>
-                <div class="stat-label">Completed Tasks</div>
             </div>
         </div>
 
@@ -554,7 +581,7 @@
     <script>
         // Google Sheets API configuration
         const GOOGLE_SHEETS_CONFIG = {
-            apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
+             apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
             spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54', // Replace with your actual spreadsheet ID
             ranges: [
                 'Manifest_Data!A:AK',
@@ -587,6 +614,10 @@
             { id: 20, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
         ];
 
+        // Store original data and working data separately
+        let originalVesselsData = [];
+        let vesselsData = [];
+
         // Date parsing function for manifest dates
         function parseManifestDate(dateString) {
             if (!dateString) return null;
@@ -600,6 +631,100 @@
                 return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
             }
             return dateString;
+        }
+
+        // Get current week start and end dates
+        function getCurrentWeekDates() {
+            const now = new Date();
+            const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+            const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+            
+            startOfWeek.setHours(0, 0, 0, 0);
+            endOfWeek.setHours(23, 59, 59, 999);
+            
+            return { startOfWeek, endOfWeek };
+        }
+
+        // Count customers arriving this week
+        function countArrivingThisWeek(vessels) {
+            const { startOfWeek, endOfWeek } = getCurrentWeekDates();
+            let count = 0;
+            
+            vessels.forEach(vessel => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                customersToCount.forEach(customer => {
+                    const etaDate = new Date(customer.eta);
+                    if (etaDate >= startOfWeek && etaDate <= endOfWeek) {
+                        count++;
+                    }
+                });
+            });
+            
+            return count;
+        }
+
+        // Get vessel ETA range (earliest and latest customer ETAs)
+        function getVesselETARange(vessel) {
+            if (!vessel.customers || vessel.customers.length === 0) return null;
+            
+            const etas = vessel.customers.map(c => new Date(c.eta)).sort((a, b) => a - b);
+            const earliest = etas[0];
+            const latest = etas[etas.length - 1];
+            
+            if (earliest.getTime() === latest.getTime()) {
+                return formatDate(earliest.toISOString().split('T')[0]);
+            } else {
+                return `${formatDate(earliest.toISOString().split('T')[0])} - ${formatDate(latest.toISOString().split('T')[0])}`;
+            }
+        }
+
+        // Merge imported data with existing data - only add NEW data, never overwrite existing
+        function mergeVesselData(importedData, existingData) {
+            const mergedData = [...existingData]; // Start with all existing data
+            let newCustomersAdded = 0;
+            let newVesselsAdded = 0;
+            
+            importedData.forEach(importedVessel => {
+                const existingVessel = mergedData.find(v => 
+                    v.vessel === importedVessel.vessel && v.voyage === importedVessel.voyage
+                );
+                
+                if (existingVessel) {
+                    // Vessel exists, only add NEW customers
+                    importedVessel.customers.forEach(importedCustomer => {
+                        const existingCustomer = existingVessel.customers.find(c => 
+                            c.bnumber === importedCustomer.bnumber && c.bol === importedCustomer.bol
+                        );
+                        
+                        if (!existingCustomer) {
+                            // Customer doesn't exist, add it
+                            existingVessel.customers.push(importedCustomer);
+                            newCustomersAdded++;
+                            console.log(`Added new customer: ${importedCustomer.name} (${importedCustomer.bnumber})`);
+                        } else {
+                            // Customer exists, don't touch it at all
+                            console.log(`Skipped existing customer: ${existingCustomer.name} (${existingCustomer.bnumber})`);
+                        }
+                    });
+                } else {
+                    // New vessel, add it completely
+                    mergedData.push(importedVessel);
+                    newVesselsAdded++;
+                    console.log(`Added new vessel: ${importedVessel.vessel} ${importedVessel.voyage}`);
+                }
+            });
+            
+            // Log summary
+            console.log(`Import Summary: ${newVesselsAdded} new vessels, ${newCustomersAdded} new customers added`);
+            
+            // Show user-friendly message
+            if (newVesselsAdded > 0 || newCustomersAdded > 0) {
+                alert(`Import complete!\n${newVesselsAdded} new vessels and ${newCustomersAdded} new customers added.\nExisting data was preserved.`);
+            } else {
+                alert('Import complete!\nNo new data found. All existing data preserved.');
+            }
+            
+            return mergedData;
         }
 
         // Transform manifest data to dashboard format
@@ -737,35 +862,38 @@
         }
 
         // Sample data (this would come from Google Sheets)
-        let vesselsData = [
-            {
-                vessel: "BRILLIANT ACE 0119A",
-                voyage: "0119A",
-                ets: "2025-06-12",
-                customers: [
-                    {
-                        name: "PELLEGRINO",
-                        bnumber: "B2501_",
-                        bol: "MOLU18007433610",
-                        email: "pellegrino@example.com",
-                        notes: "Customer prefers afternoon pickup",
-                        pod: "JACKSONVILLE",
-                        eta: "2025-07-13",
-                        inland: "UNKNOWN",
-                        tasks: {
-                            1: "completed", 2: "completed", 3: "in-progress", 4: "incomplete",
-                            5: "incomplete", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
-                            9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
-                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                            17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
-                        },
-                        taskDates: {
-                            1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
+        function initializeSampleData() {
+            originalVesselsData = [
+                {
+                    vessel: "BRILLIANT ACE 0119A",
+                    voyage: "0119A",
+                    ets: "2025-06-12",
+                    customers: [
+                        {
+                            name: "PELLEGRINO",
+                            bnumber: "B2501_",
+                            bol: "MOLU18007433610",
+                            email: "pellegrino@example.com",
+                            notes: "Customer prefers afternoon pickup",
+                            pod: "JACKSONVILLE",
+                            eta: "2025-07-13",
+                            inland: "UNKNOWN",
+                            tasks: {
+                                1: "completed", 2: "completed", 3: "in-progress", 4: "incomplete",
+                                5: "incomplete", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
+                                9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
+                                13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                                17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
+                            },
+                            taskDates: {
+                                1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
+                            }
                         }
-                    }
-                ]
-            }
-        ];
+                    ]
+                }
+            ];
+            vesselsData = JSON.parse(JSON.stringify(originalVesselsData)); // Deep clone
+        }
 
         function formatDate(dateString) {
             const date = new Date(dateString);
@@ -946,6 +1074,25 @@
             });
         }
 
+        function sortVessels(vessels, sortBy) {
+            const sorted = [...vessels];
+            
+            switch (sortBy) {
+                case 'ets':
+                    return sorted.sort((a, b) => new Date(a.ets) - new Date(b.ets));
+                case 'eta':
+                    return sorted.sort((a, b) => {
+                        const aEarliestETA = Math.min(...a.customers.map(c => new Date(c.eta)));
+                        const bEarliestETA = Math.min(...b.customers.map(c => new Date(c.eta)));
+                        return aEarliestETA - bEarliestETA;
+                    });
+                case 'vessel':
+                    return sorted.sort((a, b) => a.vessel.localeCompare(b.vessel));
+                default:
+                    return sorted;
+            }
+        }
+
         function applyFilters(vessels) {
             const vesselFilter = document.getElementById('vesselFilter').value;
             const portFilter = document.getElementById('portFilter').value;
@@ -954,8 +1101,9 @@
             const etaToFilter = document.getElementById('etaToFilter').value;
             const etsFromFilter = document.getElementById('etsFromFilter').value;
             const etsToFilter = document.getElementById('etsToFilter').value;
+            const sortBy = document.getElementById('sortFilter').value;
 
-            return vessels.filter(vessel => {
+            let filteredVessels = vessels.filter(vessel => {
                 // Filter by vessel name
                 if (vesselFilter && vessel.vessel !== vesselFilter) {
                     return false;
@@ -1021,6 +1169,9 @@
                 vessel.filteredCustomers = filteredCustomers;
                 return true;
             });
+
+            // Apply sorting
+            return sortVessels(filteredVessels, sortBy);
         }
 
         function hasIncompleteTasks(customerTasks) {
@@ -1067,11 +1218,8 @@
             const container = document.getElementById('vesselsContainer');
             container.innerHTML = '';
             
-            // Sort vessels by ETS (oldest first)
-            const sortedVessels = [...vesselsData].sort((a, b) => new Date(a.ets) - new Date(b.ets));
-            
-            // Apply filters
-            const filteredVessels = applyFilters(sortedVessels);
+            // Apply filters and sorting
+            const filteredVessels = applyFilters(vesselsData);
             
             filteredVessels.forEach(vessel => {
                 // Use filtered customers if available, otherwise use all customers
@@ -1082,6 +1230,8 @@
                 const vesselCard = document.createElement('div');
                 vesselCard.className = 'vessel-card';
                 
+                const vesselETA = getVesselETARange(vessel);
+                
                 vesselCard.innerHTML = `
                     <div class="vessel-header" onclick="toggleVessel(this)">
                         <div class="vessel-title">
@@ -1089,7 +1239,7 @@
                             <span class="collapse-icon">▼</span>
                         </div>
                         <div class="vessel-info">
-                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ${sortedCustomers.length} Customer(s)
+                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ETA: ${vesselETA || 'N/A'} | ${sortedCustomers.length} Customer(s)
                         </div>
                     </div>
                     <div class="vessel-content">
@@ -1262,19 +1412,16 @@
         }
 
         function updateStats() {
-            // Sort vessels by ETS (oldest first)
-            const sortedVessels = [...vesselsData].sort((a, b) => new Date(a.ets) - new Date(b.ets));
-            
             // Apply filters to get current displayed data
-            const filteredVessels = applyFilters(sortedVessels);
+            const filteredVessels = applyFilters(vesselsData);
             
             const totalVessels = filteredVessels.length;
             const totalCustomers = filteredVessels.reduce((sum, vessel) => {
                 const customersToCount = vessel.filteredCustomers || vessel.customers;
                 return sum + customersToCount.length;
             }, 0);
+            const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
             let pendingTasks = 0;
-            let completedTasks = 0;
             
             filteredVessels.forEach(vessel => {
                 const customersToCount = vessel.filteredCustomers || vessel.customers;
@@ -1282,17 +1429,13 @@
                     TASKS.forEach(task => {
                         const status = customer.tasks[task.id];
                         if (task.customStates) {
-                            // For custom state tasks, last state is considered completed
-                            if (status === task.customStates[task.customStates.length - 1]) {
-                                completedTasks++;
-                            } else {
+                            // For custom state tasks, first state is considered incomplete
+                            if (status === task.customStates[0]) {
                                 pendingTasks++;
                             }
                         } else {
                             // For standard tasks
-                            if (status === 'completed') {
-                                completedTasks++;
-                            } else {
+                            if (status === 'incomplete' || status === 'in-progress') {
                                 pendingTasks++;
                             }
                         }
@@ -1302,53 +1445,56 @@
             
             document.getElementById('totalVessels').textContent = totalVessels;
             document.getElementById('totalCustomers').textContent = totalCustomers;
+            document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
             document.getElementById('pendingTasks').textContent = pendingTasks;
-            document.getElementById('completedTasks').textContent = completedTasks;
         }
 
-        function refreshData() {
+        // Separate function for applying filters and rendering (used by Refresh Data button)
+        function applyFiltersAndRender() {
+            renderDashboard();
+            updateStats();
+        }
+
+        // Import data function (used by Import Data button)
+        async function importData() {
             const dataSourceElement = document.getElementById('dataSource');
             
             // Check if Google Sheets is configured
             if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
-                console.log('Using sample data - Google Sheets not configured yet');
+                console.log('Google Sheets not configured yet');
                 dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
-                renderDashboard();
-                updateStats();
+                alert('Please configure your Google Sheets API credentials first.');
                 return;
             }
 
             // Load from Google Sheets
-            dataSourceElement.textContent = '🔄 Loading from Google Sheets...';
+            dataSourceElement.textContent = '🔄 Importing from Google Sheets...';
             const loadingOverlay = document.createElement('div');
-            loadingOverlay.innerHTML = '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; color: white; font-size: 1.5rem;">🔄 Loading data from Google Sheets...</div>';
+            loadingOverlay.innerHTML = '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; color: white; font-size: 1.5rem;">🔄 Importing data from Google Sheets...</div>';
             document.body.appendChild(loadingOverlay);
             
-            fetchGoogleSheetsData()
-                .then(sheetsData => {
-                    if (sheetsData && sheetsData.length > 0) {
-                        vesselsData = sheetsData;
-                        dataSourceElement.textContent = `✅ Connected to Google Sheets - ${sheetsData.length} vessel(s) loaded`;
-                        renderDashboard();
-                        updateStats();
-                        console.log('Data successfully loaded from Google Sheets:', sheetsData.length, 'vessels');
-                    } else {
-                        console.log('No data received from Google Sheets, using sample data');
-                        dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Sample Data';
-                        renderDashboard();
-                        updateStats();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error refreshing data:', error);
-                    dataSourceElement.textContent = '❌ Google Sheets Error - Using Sample Data';
-                    alert('Error loading data from Google Sheets. Using sample data. Please check your configuration.');
+            try {
+                const sheetsData = await fetchGoogleSheetsData();
+                if (sheetsData && sheetsData.length > 0) {
+                    // Merge with existing data to preserve task progress
+                    vesselsData = mergeVesselData(sheetsData, vesselsData);
+                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData)); // Update original data
+                    
+                    dataSourceElement.textContent = `✅ Imported from Google Sheets - ${sheetsData.length} vessel(s) loaded`;
                     renderDashboard();
                     updateStats();
-                })
-                .finally(() => {
-                    document.body.removeChild(loadingOverlay);
-                });
+                    console.log('Data successfully imported from Google Sheets:', sheetsData.length, 'vessels');
+                } else {
+                    console.log('No data received from Google Sheets');
+                    dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Current Data';
+                }
+            } catch (error) {
+                console.error('Error importing data:', error);
+                dataSourceElement.textContent = '❌ Google Sheets Import Error - Using Current Data';
+                alert('Error importing data from Google Sheets. Please check your configuration.');
+            } finally {
+                document.body.removeChild(loadingOverlay);
+            }
         }
 
         function exportData() {
@@ -1359,12 +1505,15 @@
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
+            // Initialize with sample data
+            initializeSampleData();
+            
             // Update data source indicator on load
             const dataSourceElement = document.getElementById('dataSource');
             if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
                 dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
             } else {
-                dataSourceElement.textContent = '📊 Google Sheets Configured - Click Refresh to Load';
+                dataSourceElement.textContent = '📊 Google Sheets Configured - Click Import Data to Load';
             }
             
             renderDashboard();
