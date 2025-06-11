@@ -581,7 +581,7 @@
     <script>
         // Google Sheets API configuration
         const GOOGLE_SHEETS_CONFIG = {
-                apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
+            apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
             spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54', // Replace with your actual spreadsheet ID
             ranges: [
                 'Manifest_Data!A:AK',
@@ -956,7 +956,22 @@
                         updateTaskInGoogleSheets(customerData.name, customerData.bol, taskId, newStatus);
                     }
                     
-                    renderDashboard();
+                    // Only update the specific customer's tasks instead of full re-render
+                    const customerId = `${vessel}|${customer}`;
+                    const tasksContainer = document.getElementById(`tasks-${customerId}`);
+                    if (tasksContainer) {
+                        // Check if showing all tasks or just next tasks
+                        const showAllBtn = tasksContainer.closest('.customer-card').querySelector('.show-all-btn');
+                        const showingAll = showAllBtn && showAllBtn.textContent.includes('Show Less');
+                        renderCustomerTasks(tasksContainer, customerId, showingAll);
+                        
+                        // Update the next tasks count in header
+                        const tasksHeader = tasksContainer.closest('.customer-card').querySelector('.tasks-title');
+                        const nextTasks = getNextTasks(customerData.tasks, 3);
+                        tasksHeader.textContent = `📋 Next Tasks (${nextTasks.length} pending)`;
+                    }
+                    
+                    // Update stats only (no full re-render)
                     updateStats();
                 }
             }
@@ -1214,15 +1229,22 @@
             return true;
         }
 
+        // Store vessel collapsed states globally
+        let vesselCollapsedStates = {};
+
         function renderDashboard() {
             const container = document.getElementById('vesselsContainer');
             
             // Save current collapsed states before re-rendering
-            const collapsedStates = {};
             const vesselHeaders = container.querySelectorAll('.vessel-header');
             vesselHeaders.forEach(header => {
-                const vesselTitle = header.querySelector('.vessel-title').textContent.trim();
-                collapsedStates[vesselTitle] = header.classList.contains('collapsed');
+                const vesselInfo = header.querySelector('.vessel-info').textContent;
+                // Extract vessel and voyage from the info text
+                const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
+                const vesselName = header.querySelector('.vessel-title').textContent.replace('▼', '').replace('▶', '').trim();
+                const voyage = voyageMatch ? voyageMatch[1].trim() : '';
+                const vesselKey = `${vesselName}_${voyage}`;
+                vesselCollapsedStates[vesselKey] = header.classList.contains('collapsed');
             });
             
             container.innerHTML = '';
@@ -1313,12 +1335,12 @@
                 container.appendChild(vesselCard);
                 
                 // Restore collapsed state if it was previously collapsed
+                const vesselKey = `${vessel.vessel}_${vessel.voyage}`;
                 const vesselHeader = vesselCard.querySelector('.vessel-header');
                 const vesselContent = vesselCard.querySelector('.vessel-content');
                 const collapseIcon = vesselCard.querySelector('.collapse-icon');
-                const vesselTitle = vessel.vessel;
                 
-                if (collapsedStates[vesselTitle]) {
+                if (vesselCollapsedStates[vesselKey] === true) {
                     vesselHeader.classList.add('collapsed');
                     vesselContent.classList.add('collapsed');
                     collapseIcon.textContent = '▶';
@@ -1344,6 +1366,7 @@
                     customerData[field] = value;
                     // Note: In real implementation, this would also update Google Sheets
                     console.log(`Updated ${field} for ${bnumber} to ${value}`);
+                    // No need to re-render dashboard for field updates
                 }
             }
         }
@@ -1354,7 +1377,20 @@
                 const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
-                    renderDashboard();
+                    
+                    // Update just the inland badge instead of full re-render
+                    const customerCards = document.querySelectorAll('.customer-card');
+                    customerCards.forEach(card => {
+                        const bnumberInput = card.querySelector('input[value="' + bnumber + '"]');
+                        if (bnumberInput) {
+                            const inlandBadge = card.querySelector('.inland-badge');
+                            if (inlandBadge) {
+                                inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
+                                inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
+                            }
+                        }
+                    });
+                    
                     updateStats();
                 }
             }
@@ -1388,14 +1424,23 @@
             const content = header.nextElementSibling;
             const icon = header.querySelector('.collapse-icon');
             
+            // Get vessel key for state tracking
+            const vesselInfo = header.querySelector('.vessel-info').textContent;
+            const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
+            const vesselName = header.querySelector('.vessel-title').textContent.replace('▼', '').replace('▶', '').trim();
+            const voyage = voyageMatch ? voyageMatch[1].trim() : '';
+            const vesselKey = `${vesselName}_${voyage}`;
+            
             if (content.classList.contains('collapsed')) {
                 content.classList.remove('collapsed');
                 header.classList.remove('collapsed');
                 icon.textContent = '▼';
+                vesselCollapsedStates[vesselKey] = false;
             } else {
                 content.classList.add('collapsed');
                 header.classList.add('collapsed');
                 icon.textContent = '▶';
+                vesselCollapsedStates[vesselKey] = true;
             }
         }
 
