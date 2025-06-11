@@ -595,8 +595,8 @@
         // 4. Deploy as web app with "Execute as: Me" and "Who has access: Anyone"
         // 5. Copy the web app URL here
         const GOOGLE_APPS_SCRIPT_CONFIG = {
-            webAppUrl: 'https://script.google.com/macros/s/AKfycbyXcoafvRwi_YMaR_eoG8BZTImyMEEBbqI74pMe1wy_07evGf_zWKBdtpSxzrVqjUmB/exec', // Replace with your deployed web app URL
-           spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54', // Replace with your actual spreadsheet ID' // Replace with your actual spreadsheet ID
+            webAppUrl: 'https://script.google.com/macros/s/AKfycbyCroSNR76NShl7WAGifAEAkW3lZKgEdRM1AsryeeQ/dev', // Replace with your deployed web app URL
+            spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54' // Replace with your actual spreadsheet ID
         };
 
         // Log the required Google Apps Script code
@@ -849,25 +849,68 @@ DEPLOYMENT STEPS:
         // Load data from Google Apps Script
         async function loadFromGoogleAppsScript() {
             if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
+                console.log('Google Apps Script URL not configured');
                 return null;
             }
 
             try {
-                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl);
-                const data = await response.json();
+                console.log('Fetching data from Google Apps Script:', GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl);
+                
+                // Add no-cors mode to handle CORS issues
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'GET',
+                    mode: 'cors', // Try cors first
+                    cache: 'no-cache'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+                }
+                
+                const textResponse = await response.text();
+                console.log('Raw response text:', textResponse);
+                
+                let data;
+                try {
+                    data = JSON.parse(textResponse);
+                } catch (parseError) {
+                    console.error('JSON Parse Error:', parseError);
+                    console.error('Response was:', textResponse);
+                    throw new Error('Invalid JSON response from Google Apps Script');
+                }
+                
+                console.log('Parsed data received:', data);
+                
+                // Check if we got an error response
+                if (data.success === false) {
+                    throw new Error(data.error || 'Unknown error from Google Apps Script');
+                }
                 
                 if (data.manifestData && data.customerData && data.taskData) {
                     // Transform the data to dashboard format
                     const transformedData = transformManifestData(data.manifestData, data.customerData, data.taskData);
                     console.log('Data loaded from Google Apps Script:', transformedData.length, 'vessels');
                     return transformedData;
+                } else {
+                    console.error('Invalid data structure received:', data);
+                    throw new Error('Invalid data structure received from Google Apps Script');
                 }
                 
             } catch (error) {
                 console.error('Error loading from Google Apps Script:', error);
+                
+                // Provide specific error messages for common issues
+                if (error.message.includes('Failed to fetch')) {
+                    console.error('FETCH ERROR: This usually means:');
+                    console.error('1. Google Apps Script is not deployed with public access');
+                    console.error('2. The web app URL is incorrect');
+                    console.error('3. CORS/permissions issue');
+                    console.error('4. Network/firewall blocking the request');
+                    console.error('Try opening this URL directly in a new tab:', GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl);
+                }
+                
+                throw error; // Re-throw to handle in calling function
             }
-            
-            return null;
         }
 
         // Task definitions based on AutoHub Status Sheet workflow
@@ -1923,7 +1966,34 @@ DEPLOYMENT STEPS:
         }
 
         // Separate function for applying filters and rendering (used by Refresh Data button)
-        function applyFiltersAndRender() {
+        async function applyFiltersAndRender() {
+            // Show loading message
+            const dataSourceElement = document.getElementById('dataSource');
+            const originalText = dataSourceElement.textContent;
+            dataSourceElement.textContent = '🔄 Refreshing data from Google Sheets...';
+            
+            try {
+                // Try to reload fresh data from Google Apps Script
+                const sheetsData = await loadFromGoogleAppsScript();
+                if (sheetsData && sheetsData.length > 0) {
+                    // Merge with existing data to preserve local changes
+                    vesselsData = mergeVesselData(sheetsData, vesselsData);
+                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
+                    
+                    dataSourceElement.textContent = `✅ Data refreshed - ${sheetsData.length} vessel(s) | Multi-user sync enabled`;
+                    console.log('Data refreshed successfully:', sheetsData.length, 'vessels');
+                } else {
+                    // If no new data, just re-render existing data
+                    dataSourceElement.textContent = originalText;
+                    console.log('No new data received, re-rendering existing data');
+                }
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                dataSourceElement.textContent = originalText;
+                alert('Error refreshing data. Please check your Google Apps Script configuration.');
+            }
+            
+            // Re-render dashboard with current data
             renderDashboard();
             updateStatsOnly();
         }
