@@ -503,19 +503,19 @@
         <div class="controls-grid">
             <div class="filter-group">
                 <label for="vesselFilter">Filter by Vessel:</label>
-                <select id="vesselFilter">
+                <select id="vesselFilter" onchange="refreshFilters()">
                     <option value="">All Vessels</option>
                 </select>
             </div>
             <div class="filter-group">
                 <label for="portFilter">Filter by Port:</label>
-                <select id="portFilter">
+                <select id="portFilter" onchange="refreshFilters()">
                     <option value="">All Ports</option>
                 </select>
             </div>
             <div class="filter-group">
                 <label for="statusFilter">Filter by Status:</label>
-                <select id="statusFilter">
+                <select id="statusFilter" onchange="refreshFilters()">
                     <option value="">All Statuses</option>
                     <option value="incomplete">Incomplete Tasks</option>
                     <option value="completed">Completed Tasks</option>
@@ -523,7 +523,7 @@
             </div>
             <div class="filter-group">
                 <label for="vesselStatusFilter">Vessel Status:</label>
-                <select id="vesselStatusFilter">
+                <select id="vesselStatusFilter" onchange="refreshFilters()">
                     <option value="active">Active Vessels</option>
                     <option value="completed">Completed Vessels</option>
                     <option value="all">All Vessels</option>
@@ -531,7 +531,7 @@
             </div>
             <div class="filter-group">
                 <label for="sortFilter">Sort by:</label>
-                <select id="sortFilter">
+                <select id="sortFilter" onchange="refreshFilters()">
                     <option value="ets">ETS (Earliest First)</option>
                     <option value="eta">ETA (Earliest First)</option>
                     <option value="vessel">Vessel Name</option>
@@ -539,23 +539,23 @@
             </div>
             <div class="filter-group">
                 <label for="etaFromFilter">ETA From:</label>
-                <input type="date" id="etaFromFilter">
+                <input type="date" id="etaFromFilter" onchange="refreshFilters()">
             </div>
             <div class="filter-group">
                 <label for="etaToFilter">ETA To:</label>
-                <input type="date" id="etaToFilter">
+                <input type="date" id="etaToFilter" onchange="refreshFilters()">
             </div>
             <div class="filter-group">
                 <label for="etsFromFilter">ETS From:</label>
-                <input type="date" id="etsFromFilter">
+                <input type="date" id="etsFromFilter" onchange="refreshFilters()">
             </div>
             <div class="filter-group">
                 <label for="etsToFilter">ETS To:</label>
-                <input type="date" id="etsToFilter">
+                <input type="date" id="etsToFilter" onchange="refreshFilters()">
             </div>
             <div>
-                <button class="btn" onclick="applyFiltersAndRender()">🔄 Refresh Data</button>
-                <button class="btn btn-import" onclick="importData()">📥 Import Data</button>
+                <button class="btn" onclick="refreshFilters()" title="Apply current filter settings">🔄 Refresh Filters</button>
+                <button class="btn btn-import" onclick="importData()" title="Import new data from Google Sheets">📥 Import Data</button>
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
             </div>
         </div>
@@ -587,333 +587,13 @@
     </div>
 
     <script>
-        // Google Apps Script configuration for multi-user data persistence
-        // SETUP INSTRUCTIONS:
-        // 1. Go to script.google.com
-        // 2. Create a new project
-        // 3. Copy the Google Apps Script code (see console for script)
-        // 4. Deploy as web app with "Execute as: Me" and "Who has access: Anyone"
-        // 5. Copy the web app URL here
+        // Google Apps Script configuration
         const GOOGLE_APPS_SCRIPT_CONFIG = {
-            webAppUrl: 'https://script.google.com/macros/s/AKfycbytmR603cnoveGUtX-XZlgFGDv5OEG2-aTeAZ0bFLseoWhr56CGZrGdFMPnJapVYFE/exec', // Replace with your deployed web app URL
-            spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54' // Replace with your actual spreadsheet ID
+            webAppUrl: 'https://script.google.com/macros/s/AKfycbx0tsmjGcQXsA4p0wheByflLmZz-HUsWbyYKwOIerVnZhKdXYfwFovQ9L0kdqQcuYqi/exec',
+            spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54'
         };
 
-        // Log the required Google Apps Script code
-        console.log(`
-===========================================
-GOOGLE APPS SCRIPT CODE FOR MULTI-USER SUPPORT
-===========================================
-
-Copy this code to script.google.com:
-
-function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  const action = data.action;
-  const spreadsheetId = '${GOOGLE_APPS_SCRIPT_CONFIG.spreadsheetId}';
-  
-  try {
-    switch(action) {
-      case 'updateTask':
-        return updateTaskStatus(spreadsheetId, data);
-      case 'updateCustomerField':
-        return updateCustomerField(spreadsheetId, data);
-      case 'readData':
-        return readAllData(spreadsheetId);
-      default:
-        return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Unknown action'}));
-    }
-  } catch(error) {
-    return ContentService.createTextOutput(JSON.stringify({success: false, error: error.toString()}));
-  }
-}
-
-function doGet(e) {
-  const spreadsheetId = '${GOOGLE_APPS_SCRIPT_CONFIG.spreadsheetId}';
-  return readAllData(spreadsheetId);
-}
-
-function updateTaskStatus(spreadsheetId, data) {
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  const taskSheet = ss.getSheetByName('Task_Status');
-  
-  // Find the row with matching customer and BL number
-  const values = taskSheet.getDataRange().getValues();
-  const headers = values[0];
-  
-  for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === data.customerName && values[i][1] === data.blNo) {
-      // Find the task column
-      const taskFieldName = getTaskFieldName(data.taskId);
-      let columnIndex = -1;
-      
-      for (let j = 0; j < headers.length; j++) {
-        if (headers[j].toLowerCase().includes(taskFieldName) || headers[j].includes('task_' + data.taskId)) {
-          columnIndex = j;
-          break;
-        }
-      }
-      
-      if (columnIndex !== -1) {
-        taskSheet.getRange(i + 1, columnIndex + 1).setValue(data.newStatus);
-        
-        // Also update task date if needed
-        const dateColumnIndex = columnIndex + 1; // Assuming date column is next to status
-        if (data.newStatus === 'in-progress' || data.newStatus === 'completed') {
-          if (dateColumnIndex < headers.length) {
-            taskSheet.getRange(i + 1, dateColumnIndex + 1).setValue(new Date());
-          }
-        }
-        
-        return ContentService.createTextOutput(JSON.stringify({success: true}));
-      }
-    }
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Row or column not found'}));
-}
-
-function updateCustomerField(spreadsheetId, data) {
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  let sheet;
-  
-  // Determine which sheet to update
-  if (data.fieldName === 'notes' || data.fieldName === 'email') {
-    sheet = ss.getSheetByName('Customer_Details');
-  } else {
-    sheet = ss.getSheetByName('Manifest_Data');
-  }
-  
-  const values = sheet.getDataRange().getValues();
-  const headers = values[0];
-  
-  // Find column index for the field
-  let columnIndex = -1;
-  for (let j = 0; j < headers.length; j++) {
-    if (headers[j].toLowerCase().includes(data.fieldName.toLowerCase())) {
-      columnIndex = j;
-      break;
-    }
-  }
-  
-  if (columnIndex === -1) {
-    return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Column not found'}));
-  }
-  
-  // Find row with matching customer
-  for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === data.customerName) {
-      sheet.getRange(i + 1, columnIndex + 1).setValue(data.newValue);
-      return ContentService.createTextOutput(JSON.stringify({success: true}));
-    }
-  }
-  
-  return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Customer not found'}));
-}
-
-function readAllData(spreadsheetId) {
-  const ss = SpreadsheetApp.openById(spreadsheetId);
-  
-  // Read all three sheets
-  const manifestSheet = ss.getSheetByName('Manifest_Data');
-  const customerSheet = ss.getSheetByName('Customer_Details');
-  const taskSheet = ss.getSheetByName('Task_Status');
-  
-  const manifestData = sheetToObjects(manifestSheet);
-  const customerData = sheetToObjects(customerSheet);
-  const taskData = sheetToObjects(taskSheet);
-  
-  const result = {
-    manifestData: manifestData,
-    customerData: customerData,
-    taskData: taskData,
-    timestamp: new Date().toISOString()
-  };
-  
-  return ContentService.createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function sheetToObjects(sheet) {
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return [];
-  
-  const headers = values[0];
-  const objects = [];
-  
-  for (let i = 1; i < values.length; i++) {
-    const obj = {};
-    for (let j = 0; j < headers.length; j++) {
-      obj[headers[j]] = values[i][j] || '';
-    }
-    objects.push(obj);
-  }
-  
-  return objects;
-}
-
-function getTaskFieldName(taskId) {
-  const fieldNames = {
-    1: 'isf_transmit', 2: 'isf_match', 3: 'entry_created', 4: 'inland_confirm',
-    5: 'awis_invoice', 6: 'noa_received', 7: 'noa_accounting', 8: 'bitrix_eta',
-    9: 'arrival_email', 10: 'payment_check', 11: 'entry_transmitted', 12: 'cbp_release',
-    13: 'ssl_request', 14: 'ssl_confirmed', 15: 'release_notification', 16: 'upload_release_docs',
-    17: 'customs_clear_bitrix', 18: 'dispatch_memo', 19: 'reg_docs_cbp', 20: 'reg_docs_bitrix'
-  };
-  return fieldNames[taskId] || 'unknown';
-}
-
-===========================================
-DEPLOYMENT STEPS:
-1. Go to script.google.com
-2. Create new project
-3. Paste the above code
-4. Click Deploy > New Deployment
-5. Choose "Web app" type
-6. Set "Execute as: Me"
-7. Set "Who has access: Anyone"
-8. Click Deploy and copy the web app URL
-9. Replace YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE with your URL
-===========================================
-        `);
-
-        // Remove local storage functions (not needed for multi-user)
-        // const STORAGE_KEY = 'autohub_dashboard_data';
-        
-        // Multi-user data persistence via Google Apps Script
-        async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
-            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                console.log('Google Apps Script not configured yet');
-                return;
-            }
-
-            try {
-                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'updateTask',
-                        customerName: customerName,
-                        blNo: blNo,
-                        taskId: taskId,
-                        newStatus: newStatus
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log(`Successfully updated task ${taskId} for ${customerName} to ${newStatus}`);
-                } else {
-                    console.error('Failed to update task:', result.error);
-                }
-                
-            } catch (error) {
-                console.error('Error updating task via Google Apps Script:', error);
-            }
-        }
-
-        async function saveCustomerFieldToGoogleAppsScript(customerName, blNo, fieldName, newValue) {
-            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                return;
-            }
-
-            try {
-                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'updateCustomerField',
-                        customerName: customerName,
-                        blNo: blNo,
-                        fieldName: fieldName,
-                        newValue: newValue
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log(`Successfully updated ${fieldName} for ${customerName}`);
-                } else {
-                    console.error('Failed to update customer field:', result.error);
-                }
-                
-            } catch (error) {
-                console.error('Error updating customer field via Google Apps Script:', error);
-            }
-        }
-
-        // Load data from Google Apps Script
-        async function loadFromGoogleAppsScript() {
-            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                console.log('Google Apps Script URL not configured');
-                return null;
-            }
-
-            try {
-                console.log('Fetching data from Google Apps Script:', GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl);
-                
-                // Add no-cors mode to handle CORS issues
-                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
-                    method: 'GET',
-                    mode: 'cors', // Try cors first
-                    cache: 'no-cache'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
-                }
-                
-                const textResponse = await response.text();
-                console.log('Raw response text:', textResponse);
-                
-                let data;
-                try {
-                    data = JSON.parse(textResponse);
-                } catch (parseError) {
-                    console.error('JSON Parse Error:', parseError);
-                    console.error('Response was:', textResponse);
-                    throw new Error('Invalid JSON response from Google Apps Script');
-                }
-                
-                console.log('Parsed data received:', data);
-                
-                // Check if we got an error response
-                if (data.success === false) {
-                    throw new Error(data.error || 'Unknown error from Google Apps Script');
-                }
-                
-                if (data.manifestData && data.customerData && data.taskData) {
-                    // Transform the data to dashboard format
-                    const transformedData = transformManifestData(data.manifestData, data.customerData, data.taskData);
-                    console.log('Data loaded from Google Apps Script:', transformedData.length, 'vessels');
-                    return transformedData;
-                } else {
-                    console.error('Invalid data structure received:', data);
-                    throw new Error('Invalid data structure received from Google Apps Script');
-                }
-                
-            } catch (error) {
-                console.error('Error loading from Google Apps Script:', error);
-                
-                // Provide specific error messages for common issues
-                if (error.message.includes('Failed to fetch')) {
-                    console.error('FETCH ERROR: This usually means:');
-                    console.error('1. Google Apps Script is not deployed with public access');
-                    console.error('2. The web app URL is incorrect');
-                    console.error('3. CORS/permissions issue');
-                    console.error('4. Network/firewall blocking the request');
-                    console.error('Try opening this URL directly in a new tab:', GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl);
-                }
-                
-                throw error; // Re-throw to handle in calling function
-            }
-        }
-
-        // Task definitions based on AutoHub Status Sheet workflow
+        // Task definitions
         const TASKS = [
             { id: 1, name: "ISF Transmit", description: "Submit Import Security Filing" },
             { id: 2, name: "ISF Match", description: "Verify ISF matches manifest" },
@@ -937,169 +617,12 @@ DEPLOYMENT STEPS:
             { id: 20, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
         ];
 
-        // Store original data and working data separately
+        // Global data storage
         let originalVesselsData = [];
         let vesselsData = [];
+        let vesselCollapsedStates = {};
 
-        // Date parsing function for manifest dates
-        function parseManifestDate(dateString) {
-            if (!dateString) return null;
-            
-            // Handle DD/MM/YYYY format from manifest
-            const parts = dateString.split('/');
-            if (parts.length === 3) {
-                const day = parts[0];
-                const month = parts[1];
-                const year = parts[2];
-                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-            return dateString;
-        }
-
-        // Get current week start and end dates
-        function getCurrentWeekDates() {
-            const now = new Date();
-            const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-            const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
-            
-            startOfWeek.setHours(0, 0, 0, 0);
-            endOfWeek.setHours(23, 59, 59, 999);
-            
-            return { startOfWeek, endOfWeek };
-        }
-
-        // Count customers arriving this week
-        function countArrivingThisWeek(vessels) {
-            const { startOfWeek, endOfWeek } = getCurrentWeekDates();
-            let count = 0;
-            
-            vessels.forEach(vessel => {
-                const customersToCount = vessel.filteredCustomers || vessel.customers;
-                customersToCount.forEach(customer => {
-                    const etaDate = new Date(customer.eta);
-                    if (etaDate >= startOfWeek && etaDate <= endOfWeek) {
-                        count++;
-                    }
-                });
-            });
-            
-            return count;
-        }
-
-        // Get vessel ETA range (earliest and latest customer ETAs)
-        function getVesselETARange(vessel) {
-            if (!vessel.customers || vessel.customers.length === 0) return null;
-            
-            const etas = vessel.customers.map(c => new Date(c.eta)).sort((a, b) => a - b);
-            const earliest = etas[0];
-            const latest = etas[etas.length - 1];
-            
-            if (earliest.getTime() === latest.getTime()) {
-                return formatDate(earliest.toISOString().split('T')[0]);
-            } else {
-                return `${formatDate(earliest.toISOString().split('T')[0])} - ${formatDate(latest.toISOString().split('T')[0])}`;
-            }
-        }
-
-        // Merge imported data with existing data - only add NEW data, never overwrite existing
-        function mergeVesselData(importedData, existingData) {
-            const mergedData = [...existingData]; // Start with all existing data
-            let newCustomersAdded = 0;
-            let newVesselsAdded = 0;
-            
-            importedData.forEach(importedVessel => {
-                const existingVessel = mergedData.find(v => 
-                    v.vessel === importedVessel.vessel && v.voyage === importedVessel.voyage
-                );
-                
-                if (existingVessel) {
-                    // Vessel exists, only add NEW customers
-                    importedVessel.customers.forEach(importedCustomer => {
-                        const existingCustomer = existingVessel.customers.find(c => 
-                            c.bnumber === importedCustomer.bnumber && c.bol === importedCustomer.bol
-                        );
-                        
-                        if (!existingCustomer) {
-                            // Customer doesn't exist, add it
-                            existingVessel.customers.push(importedCustomer);
-                            newCustomersAdded++;
-                            console.log(`Added new customer: ${importedCustomer.name} (${importedCustomer.bnumber})`);
-                        } else {
-                            // Customer exists, don't touch it at all
-                            console.log(`Skipped existing customer: ${existingCustomer.name} (${existingCustomer.bnumber})`);
-                        }
-                    });
-                } else {
-                    // New vessel, add it completely
-                    mergedData.push(importedVessel);
-                    newVesselsAdded++;
-                    console.log(`Added new vessel: ${importedVessel.vessel} ${importedVessel.voyage}`);
-                }
-            });
-            
-            // Log summary
-            console.log(`Import Summary: ${newVesselsAdded} new vessels, ${newCustomersAdded} new customers added`);
-            
-            // Show user-friendly message
-            if (newVesselsAdded > 0 || newCustomersAdded > 0) {
-                alert(`Import complete!\n${newVesselsAdded} new vessels and ${newCustomersAdded} new customers added.\nExisting data was preserved.`);
-            } else {
-                alert('Import complete!\nNo new data found. All existing data preserved.');
-            }
-            
-            return mergedData;
-        }
-
-        // Transform manifest data to dashboard format
-        function transformManifestData(manifestData, customerDetails, taskStatus) {
-            const vesselsMap = new Map();
-            
-            manifestData.forEach(row => {
-                const vesselKey = `${row.Vessel}_${row['Voy.']}`;
-                
-                if (!vesselsMap.has(vesselKey)) {
-                    vesselsMap.set(vesselKey, {
-                        vessel: row.Vessel,
-                        voyage: row['Voy.'],
-                        ets: parseManifestDate(row.ETS),
-                        customers: []
-                    });
-                }
-                
-                const vessel = vesselsMap.get(vesselKey);
-                
-                // Find customer details
-                const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
-                
-                // Find task status
-                const taskData = taskStatus.find(t => t.Customer === row.Customer && t.BL_No === row['BL No.']) || {};
-                
-                // Create customer object
-                const customer = {
-                    name: row.Customer,
-                    bnumber: `B${row['Ref No.']}`, // Use Ref No. as B#
-                    bol: row['BL No.'],
-                    email: customerDetail.Email || '',
-                    notes: customerDetail.Notes || '', // Add notes field
-                    pod: row.Port,
-                    eta: parseManifestDate(row.ETA),
-                    inland: customerDetail.Inland || 'UNKNOWN',
-                    tasks: {},
-                    taskDates: {}
-                };
-                
-                // Initialize tasks
-                for (let i = 1; i <= 20; i++) {
-                    const taskField = `task_${i}_${getTaskFieldName(i)}`;
-                    customer.tasks[i] = taskData[taskField] || getDefaultTaskStatus(i);
-                }
-                
-                vessel.customers.push(customer);
-            });
-            
-            return Array.from(vesselsMap.values());
-        }
-
+        // Enhanced task field mapping - this is critical for persistence!
         function getTaskFieldName(taskId) {
             const fieldNames = {
                 1: 'isf_transmit',
@@ -1126,110 +649,275 @@ DEPLOYMENT STEPS:
             return fieldNames[taskId] || 'unknown';
         }
 
-        function getDefaultTaskStatus(taskId) {
-            // Tasks with custom states
-            if (taskId === 6) return 'NOT RECEIVED';
-            if (taskId === 10) return 'UNPAID';
-            return 'incomplete';
-        }
-
-        // Function to update task status (now uses Google Apps Script for multi-user support)
-        async function updateTaskInGoogleSheets(customerName, blNo, taskId, newStatus) {
-            // Use Google Apps Script for multi-user data persistence
-            await saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus);
-        }
-
-        // Function to update customer field (now uses Google Apps Script for multi-user support)
-        async function updateCustomerFieldInGoogleSheets(customerName, blNo, fieldName, newValue) {
-            // Use Google Apps Script for multi-user data persistence
-            await saveCustomerFieldToGoogleAppsScript(customerName, blNo, fieldName, newValue);
-        }
-
-        // Check if a vessel is completed (all customers have all tasks completed)
-        function isVesselCompleted(vessel) {
-            if (!vessel.customers || vessel.customers.length === 0) return false;
+        // Enhanced data transformation with better task mapping
+        function transformManifestData(manifestData, customerDetails, taskStatus) {
+            console.log('🔄 Transforming data...');
+            console.log('📊 Manifest rows:', manifestData.length);
+            console.log('👥 Customer detail rows:', customerDetails.length);
+            console.log('📋 Task status rows:', taskStatus.length);
             
-            return vessel.customers.every(customer => {
-                return allTasksCompleted(customer.tasks);
+            const vesselsMap = new Map();
+            
+            manifestData.forEach(row => {
+                const vesselKey = `${row.Vessel}_${row['Voy.']}`;
+                
+                if (!vesselsMap.has(vesselKey)) {
+                    vesselsMap.set(vesselKey, {
+                        vessel: row.Vessel,
+                        voyage: row['Voy.'],
+                        ets: parseManifestDate(row.ETS),
+                        customers: []
+                    });
+                }
+                
+                const vessel = vesselsMap.get(vesselKey);
+                
+                // Find customer details
+                const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
+                
+                // Find task status - IMPROVED MATCHING
+                const taskData = taskStatus.find(t => 
+                    t.Customer === row.Customer && 
+                    (t.BL_No === row['BL No.'] || t['BL No.'] === row['BL No.'])
+                ) || {};
+                
+                console.log(`🔍 Customer: ${row.Customer}, Task data found:`, Object.keys(taskData).length > 0);
+                
+                // Create customer object
+                const customer = {
+                    name: row.Customer,
+                    bnumber: `B${row['Ref No.']}`,
+                    bol: row['BL No.'],
+                    email: customerDetail.Email || '',
+                    notes: customerDetail.Notes || '',
+                    pod: row.Port,
+                    eta: parseManifestDate(row.ETA),
+                    inland: customerDetail.Inland || 'UNKNOWN',
+                    tasks: {},
+                    taskDates: {}
+                };
+                
+                // Initialize tasks with ENHANCED FIELD MAPPING
+                for (let i = 1; i <= 20; i++) {
+                    const taskFieldName = getTaskFieldName(i);
+                    
+                    // Try multiple field name patterns
+                    let taskValue = null;
+                    const possibleFieldNames = [
+                        `task_${i}_${taskFieldName}`,  // task_1_isf_transmit
+                        `Task_${i}_${taskFieldName}`,  // Task_1_isf_transmit
+                        taskFieldName,                 // isf_transmit
+                        `task_${i}`,                   // task_1
+                        `Task ${i}`,                   // Task 1
+                        `task${i}`                     // task1
+                    ];
+                    
+                    for (const fieldName of possibleFieldNames) {
+                        if (taskData[fieldName] !== undefined && taskData[fieldName] !== '') {
+                            taskValue = taskData[fieldName];
+                            console.log(`✅ Found task ${i} value: ${taskValue} in field: ${fieldName}`);
+                            break;
+                        }
+                    }
+                    
+                    // Set task status
+                    customer.tasks[i] = taskValue || getDefaultTaskStatus(i);
+                }
+                
+                vessel.customers.push(customer);
             });
+            
+            const result = Array.from(vesselsMap.values());
+            console.log('✅ Transformation complete:', result.length, 'vessels');
+            return result;
         }
 
-        // Check if a customer has all tasks completed
-        function isCustomerCompleted(customer) {
-            return allTasksCompleted(customer.tasks);
-        }
+        // Enhanced save function with better error handling
+        async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
+            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
+                console.log('⚠️ Google Apps Script not configured');
+                return false;
+            }
 
-        // Fetch data from Google Sheets
-        async function fetchGoogleSheetsData() {
             try {
-                const responses = await Promise.all(
-                    GOOGLE_SHEETS_CONFIG.ranges.map(range =>
-                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/values/${range}?key=${GOOGLE_SHEETS_CONFIG.apiKey}`)
-                            .then(response => response.json())
-                    )
-                );
+                console.log(`💾 Saving: ${customerName} - Task ${taskId} - ${newStatus}`);
+                
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'updateTask',
+                        customerName: customerName,
+                        blNo: blNo,
+                        taskId: taskId,
+                        newStatus: newStatus
+                    })
+                });
 
-                const [manifestResponse, customerDetailsResponse, taskStatusResponse] = responses;
-                
-                // Parse the data
-                const manifestData = parseSheetData(manifestResponse.values);
-                const customerDetails = parseSheetData(customerDetailsResponse.values);
-                const taskStatus = parseSheetData(taskStatusResponse.values);
-                
-                // Transform to dashboard format
-                return transformManifestData(manifestData, customerDetails, taskStatus);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`✅ Successfully saved task ${taskId} for ${customerName}: ${newStatus}`);
+                    return true;
+                } else {
+                    console.error('❌ Failed to save task:', result.error);
+                    alert(`Failed to save task: ${result.error}`);
+                    return false;
+                }
                 
             } catch (error) {
-                console.error('Error fetching Google Sheets data:', error);
-                return null;
+                console.error('❌ Error saving task:', error);
+                alert(`Error saving task: ${error.message}`);
+                return false;
             }
         }
 
-        function parseSheetData(values) {
-            if (!values || values.length <= 1) return [];
-            
-            const headers = values[0];
-            return values.slice(1).map(row => {
-                const obj = {};
-                headers.forEach((header, index) => {
-                    obj[header] = row[index] || '';
+        // Load data from Google Apps Script
+        async function loadFromGoogleAppsScript() {
+            try {
+                console.log('🔄 Loading data from Google Apps Script...');
+                
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache'
                 });
-                return obj;
-            });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const textResponse = await response.text();
+                const data = JSON.parse(textResponse);
+                
+                if (data.success === false) {
+                    throw new Error(data.error);
+                }
+                
+                if (data.manifestData && data.customerData && data.taskData) {
+                    const transformedData = transformManifestData(data.manifestData, data.customerData, data.taskData);
+                    console.log('✅ Data loaded successfully:', transformedData.length, 'vessels');
+                    return transformedData;
+                } else {
+                    throw new Error('Invalid data structure received');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error loading data:', error);
+                throw error;
+            }
         }
 
-        // Sample data (this would come from Google Sheets)
-        function initializeSampleData() {
-            originalVesselsData = [
-                {
-                    vessel: "BRILLIANT ACE 0119A",
-                    voyage: "0119A",
-                    ets: "2025-06-12",
-                    customers: [
-                        {
-                            name: "PELLEGRINO",
-                            bnumber: "B2501_",
-                            bol: "MOLU18007433610",
-                            email: "pellegrino@example.com",
-                            notes: "Customer prefers afternoon pickup",
-                            pod: "JACKSONVILLE",
-                            eta: "2025-07-13",
-                            inland: "UNKNOWN",
-                            tasks: {
-                                1: "completed", 2: "completed", 3: "in-progress", 4: "incomplete",
-                                5: "incomplete", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
-                                9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
-                                13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                                17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
-                            },
-                            taskDates: {
-                                1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
-                            }
-                        }
-                    ]
+        // FIXED: Separate functions for different button behaviors
+        
+        // 1. Refresh Filters - Only applies filters, no data loading
+        function refreshFilters() {
+            console.log('🔄 Refreshing filters (no data loading)...');
+            renderDashboard();
+            updateStatsOnly();
+        }
+
+        // 2. Import Data - Only this function loads new data
+        async function importData() {
+            const dataSourceElement = document.getElementById('dataSource');
+            
+            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
+                alert('Please configure Google Apps Script first.');
+                return;
+            }
+
+            dataSourceElement.textContent = '🔄 Importing fresh data from Google Sheets...';
+            
+            try {
+                const sheetsData = await loadFromGoogleAppsScript();
+                if (sheetsData && sheetsData.length > 0) {
+                    // Replace all data with fresh import
+                    vesselsData = sheetsData;
+                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
+                    
+                    dataSourceElement.textContent = `✅ Fresh data imported - ${sheetsData.length} vessel(s) | Task states preserved`;
+                    
+                    renderDashboard();
+                    updateStatsOnly();
+                    console.log('✅ Fresh data imported successfully');
+                } else {
+                    dataSourceElement.textContent = '⚠️ No data received from Google Sheets';
                 }
-            ];
-            vesselsData = JSON.parse(JSON.stringify(originalVesselsData)); // Deep clone
+            } catch (error) {
+                console.error('❌ Import error:', error);
+                dataSourceElement.textContent = '❌ Import Error - Check Google Apps Script configuration';
+                alert('Error importing data. Please check your Google Apps Script configuration.');
+            }
+        }
+
+        // Enhanced task update with immediate feedback
+        function updateTaskStatus(vessel, customer, taskId, newStatus) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (!vesselData) return;
+            
+            const customerData = vesselData.customers.find(c => c.bnumber === customer);
+            if (!customerData) return;
+            
+            // Update local data immediately
+            customerData.tasks[taskId] = newStatus;
+            
+            // Update task date
+            if (!customerData.taskDates) {
+                customerData.taskDates = {};
+            }
+            
+            if (newStatus === 'in-progress' || newStatus === 'completed') {
+                customerData.taskDates[taskId] = new Date().toISOString().split('T')[0];
+            }
+            
+            // Save to Google Apps Script (async, don't wait)
+            saveTaskToGoogleAppsScript(customerData.name, customerData.bol, taskId, newStatus);
+            
+            // Update UI immediately
+            const customerId = `${vessel}|${customer}`;
+            const tasksContainer = document.getElementById(`tasks-${customerId}`);
+            if (tasksContainer) {
+                const showAllBtn = tasksContainer.closest('.customer-card').querySelector('.show-all-btn');
+                const showingAll = showAllBtn && showAllBtn.textContent.includes('Show Less');
+                renderCustomerTasks(tasksContainer, customerId, showingAll);
+                
+                // Update task count
+                const tasksHeader = tasksContainer.closest('.customer-card').querySelector('.tasks-title');
+                const nextTasks = getNextTasks(customerData.tasks, 3);
+                tasksHeader.textContent = `📋 Next Tasks (${nextTasks.length} pending)`;
+                
+                if (allTasksCompleted(customerData.tasks)) {
+                    tasksHeader.textContent = '✅ All Tasks Completed!';
+                    tasksHeader.style.color = '#38a169';
+                }
+            }
+            
+            updateStatsOnly();
+        }
+
+        // Utility functions
+        function parseManifestDate(dateString) {
+            if (!dateString) return null;
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                const day = parts[0];
+                const month = parts[1];
+                const year = parts[2];
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            return dateString;
+        }
+
+        function getDefaultTaskStatus(taskId) {
+            if (taskId === 6) return 'NOT RECEIVED';
+            if (taskId === 10) return 'UNPAID';
+            return 'incomplete';
         }
 
         function formatDate(dateString) {
@@ -1249,10 +937,8 @@ DEPLOYMENT STEPS:
                 let isIncomplete = false;
                 
                 if (task && task.customStates) {
-                    // For custom state tasks, first state is considered incomplete
                     isIncomplete = status === task.customStates[0];
                 } else {
-                    // For standard tasks
                     isIncomplete = status === 'incomplete' || status === 'in-progress';
                 }
                 
@@ -1272,140 +958,77 @@ DEPLOYMENT STEPS:
             return allTasks;
         }
 
-        function updateTaskStatus(vessel, customer, taskId, newStatus) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.bnumber === customer);
-                if (customerData) {
-                    customerData.tasks[taskId] = newStatus;
-                    
-                    // Update task date
-                    if (!customerData.taskDates) {
-                        customerData.taskDates = {};
+        function allTasksCompleted(customerTasks) {
+            for (let i = 1; i <= TASKS.length; i++) {
+                const status = customerTasks[i];
+                const task = TASKS.find(t => t.id === i);
+                
+                if (task && task.customStates) {
+                    if (status !== task.customStates[task.customStates.length - 1]) {
+                        return false;
                     }
-                    
-                    if (newStatus === 'in-progress' || newStatus === 'completed') {
-                        customerData.taskDates[taskId] = new Date().toISOString().split('T')[0];
-                    }
-                    
-                    // Save to Google Apps Script for multi-user persistence
-                    updateTaskInGoogleSheets(customerData.name, customerData.bol, taskId, newStatus);
-                    
-                    // Check if vessel is now completed and update display
-                    const vesselCompleted = isVesselCompleted(vesselData);
-                    const customerCompleted = isCustomerCompleted(customerData);
-                    
-                    // Add completion indicators
-                    const customerId = `${vessel}|${customer}`;
-                    const customerCard = document.querySelector(`[data-customer-id="${customerId}"]`) || 
-                                       Array.from(document.querySelectorAll('.customer-card')).find(card => 
-                                           card.querySelector('input').value.includes(customer.replace('B', '')));
-                    
-                    if (customerCard) {
-                        // Add/remove completed class
-                        if (customerCompleted) {
-                            customerCard.classList.add('customer-completed');
-                            customerCard.style.backgroundColor = '#f0fff4';
-                            customerCard.style.borderColor = '#48bb78';
-                        } else {
-                            customerCard.classList.remove('customer-completed');
-                            customerCard.style.backgroundColor = '';
-                            customerCard.style.borderColor = '';
-                        }
-                    }
-                    
-                    // Only update the specific customer's tasks instead of full re-render
-                    const tasksContainer = document.getElementById(`tasks-${customerId}`);
-                    if (tasksContainer) {
-                        // Check if showing all tasks or just next tasks
-                        const showAllBtn = tasksContainer.closest('.customer-card').querySelector('.show-all-btn');
-                        const showingAll = showAllBtn && showAllBtn.textContent.includes('Show Less');
-                        renderCustomerTasks(tasksContainer, customerId, showingAll);
-                        
-                        // Update the next tasks count in header
-                        const tasksHeader = tasksContainer.closest('.customer-card').querySelector('.tasks-title');
-                        const nextTasks = getNextTasks(customerData.tasks, 3);
-                        tasksHeader.textContent = `📋 Next Tasks (${nextTasks.length} pending)`;
-                        
-                        // Show completion message if customer is completed
-                        if (customerCompleted && nextTasks.length === 0) {
-                            tasksHeader.textContent = '✅ All Tasks Completed!';
-                            tasksHeader.style.color = '#38a169';
-                        }
-                    }
-                    
-                    // Update stats
-                    updateStatsOnly();
-                    
-                    // Show message if vessel is completed
-                    if (vesselCompleted) {
-                        setTimeout(() => {
-                            alert(`🎉 Vessel ${vessel} is now COMPLETED!\nAll customers have finished all tasks.`);
-                        }, 500);
+                } else {
+                    if (status !== 'completed') {
+                        return false;
                     }
                 }
             }
+            return true;
         }
 
         function cycleTaskStatus(currentStatus, taskId) {
             const task = TASKS.find(t => t.id === taskId);
             
             if (task && task.customStates) {
-                // Handle custom states for specific tasks
                 const states = task.customStates;
                 const currentIndex = states.indexOf(currentStatus);
                 const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % states.length;
                 return states[nextIndex];
             } else {
-                // Handle standard states
                 switch (currentStatus) {
-                    case 'incomplete':
-                        return 'in-progress';
-                    case 'in-progress':
-                        return 'completed';
-                    case 'completed':
-                        return 'incomplete';
-                    default:
-                        return 'incomplete';
+                    case 'incomplete': return 'in-progress';
+                    case 'in-progress': return 'completed';
+                    case 'completed': return 'incomplete';
+                    default: return 'incomplete';
                 }
             }
         }
 
         function cycleInlandStatus(currentStatus) {
             switch (currentStatus) {
+                case 'UNKNOWN': return 'Y';
+                case 'Y': return 'N';
+                case 'N': return 'UNKNOWN';
+                default: return 'UNKNOWN';
+            }
+        }
+
+        function getInlandClass(inlandStatus) {
+            switch (inlandStatus) {
+                case 'Y': return 'inland-yes';
+                case 'N': return 'inland-no';
                 case 'UNKNOWN':
-                    return 'Y';
-                case 'Y':
-                    return 'N';
-                case 'N':
-                    return 'UNKNOWN';
-                default:
-                    return 'UNKNOWN';
+                default: return 'inland-unknown';
+            }
+        }
+
+        function getInlandDisplay(inlandStatus) {
+            switch (inlandStatus) {
+                case 'Y': return 'Yes';
+                case 'N': return 'No';
+                case 'UNKNOWN':
+                default: return 'Unknown';
             }
         }
 
         function shouldShowTask(taskId, customerData) {
-            // Hide task 18 (Dispatch Memo to TCAS) if inland is "N"
             if (taskId === 18 && customerData.inland === 'N') {
                 return false;
             }
             return true;
         }
 
-        function toggleTasksView(customerCard, customerId) {
-            const container = customerCard.querySelector('.tasks-grid');
-            const button = customerCard.querySelector('.show-all-btn');
-            const isShowingAll = button.textContent.includes('Show Less');
-            
-            if (isShowingAll) {
-                button.textContent = '📋 Show All Tasks';
-                renderCustomerTasks(container, customerId, false);
-            } else {
-                button.textContent = '📋 Show Less';
-                renderCustomerTasks(container, customerId, true);
-            }
-        }
-
+        // Main rendering functions
         function renderCustomerTasks(container, customerId, showAll = false) {
             const [vessel, customer] = customerId.split('|');
             const vesselData = vesselsData.find(v => v.vessel === vessel);
@@ -1418,10 +1041,7 @@ DEPLOYMENT STEPS:
             container.innerHTML = '';
             
             tasksToShow.forEach(taskId => {
-                // Check if task should be shown
-                if (!shouldShowTask(taskId, customerData)) {
-                    return;
-                }
+                if (!shouldShowTask(taskId, customerData)) return;
                 
                 const task = TASKS.find(t => t.id === taskId);
                 const status = customerData.tasks[taskId] || 'incomplete';
@@ -1437,12 +1057,8 @@ DEPLOYMENT STEPS:
                 
                 let displayStatus = status;
                 let statusClass = status.replace(' ', '-').toLowerCase();
-                if (task.customStates) {
-                    displayStatus = status;
-                    statusClass = status.replace(' ', '-').toLowerCase();
-                } else {
+                if (!task.customStates) {
                     displayStatus = status.replace('-', ' ').toUpperCase();
-                    statusClass = status;
                 }
                 
                 taskElement.innerHTML = `
@@ -1459,9 +1075,82 @@ DEPLOYMENT STEPS:
             });
         }
 
+        // Filtering and rendering functions
+        function applyFilters(vessels) {
+            const vesselFilter = document.getElementById('vesselFilter').value;
+            const portFilter = document.getElementById('portFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const vesselStatusFilter = document.getElementById('vesselStatusFilter').value;
+            const etaFromFilter = document.getElementById('etaFromFilter').value;
+            const etaToFilter = document.getElementById('etaToFilter').value;
+            const etsFromFilter = document.getElementById('etsFromFilter').value;
+            const etsToFilter = document.getElementById('etsToFilter').value;
+            const sortBy = document.getElementById('sortFilter').value;
+
+            let filteredVessels = vessels.filter(vessel => {
+                const vesselCompleted = isVesselCompleted(vessel);
+                if (vesselStatusFilter === 'active' && vesselCompleted) return false;
+                if (vesselStatusFilter === 'completed' && !vesselCompleted) return false;
+                if (vesselFilter && vessel.vessel !== vesselFilter) return false;
+
+                if (etsFromFilter || etsToFilter) {
+                    const vesselEts = new Date(vessel.ets);
+                    if (etsFromFilter && vesselEts < new Date(etsFromFilter)) return false;
+                    if (etsToFilter && vesselEts > new Date(etsToFilter)) return false;
+                }
+
+                let filteredCustomers = vessel.customers.filter(customer => {
+                    if (etaFromFilter || etaToFilter) {
+                        const customerEta = new Date(customer.eta);
+                        if (etaFromFilter && customerEta < new Date(etaFromFilter)) return false;
+                        if (etaToFilter && customerEta > new Date(etaToFilter)) return false;
+                    }
+                    if (portFilter && customer.pod !== portFilter) return false;
+                    return true;
+                });
+
+                if (filteredCustomers.length === 0) return false;
+
+                if (statusFilter === 'incomplete') {
+                    const hasIncompleteCustomers = filteredCustomers.some(customer => {
+                        return hasIncompleteTasks(customer.tasks);
+                    });
+                    if (!hasIncompleteCustomers) return false;
+                } else if (statusFilter === 'completed') {
+                    const allCustomersCompleted = filteredCustomers.every(customer => {
+                        return allTasksCompleted(customer.tasks);
+                    });
+                    if (!allCustomersCompleted) return false;
+                }
+
+                vessel.filteredCustomers = filteredCustomers;
+                return true;
+            });
+
+            return sortVessels(filteredVessels, sortBy);
+        }
+
+        function hasIncompleteTasks(customerTasks) {
+            for (let i = 1; i <= TASKS.length; i++) {
+                const status = customerTasks[i];
+                const task = TASKS.find(t => t.id === i);
+                
+                if (task && task.customStates) {
+                    if (status === task.customStates[0]) return true;
+                } else {
+                    if (status === 'incomplete' || status === 'in-progress') return true;
+                }
+            }
+            return false;
+        }
+
+        function isVesselCompleted(vessel) {
+            if (!vessel.customers || vessel.customers.length === 0) return false;
+            return vessel.customers.every(customer => allTasksCompleted(customer.tasks));
+        }
+
         function sortVessels(vessels, sortBy) {
             const sorted = [...vessels];
-            
             switch (sortBy) {
                 case 'ets':
                     return sorted.sort((a, b) => new Date(a.ets) - new Date(b.ets));
@@ -1478,149 +1167,183 @@ DEPLOYMENT STEPS:
             }
         }
 
-        function applyFilters(vessels) {
-            const vesselFilter = document.getElementById('vesselFilter').value;
-            const portFilter = document.getElementById('portFilter').value;
-            const statusFilter = document.getElementById('statusFilter').value;
-            const vesselStatusFilter = document.getElementById('vesselStatusFilter').value;
-            const etaFromFilter = document.getElementById('etaFromFilter').value;
-            const etaToFilter = document.getElementById('etaToFilter').value;
-            const etsFromFilter = document.getElementById('etsFromFilter').value;
-            const etsToFilter = document.getElementById('etsToFilter').value;
-            const sortBy = document.getElementById('sortFilter').value;
+        function getVesselETARange(vessel) {
+            if (!vessel.customers || vessel.customers.length === 0) return null;
+            const etas = vessel.customers.map(c => new Date(c.eta)).sort((a, b) => a - b);
+            const earliest = etas[0];
+            const latest = etas[etas.length - 1];
+            
+            if (earliest.getTime() === latest.getTime()) {
+                return formatDate(earliest.toISOString().split('T')[0]);
+            } else {
+                return `${formatDate(earliest.toISOString().split('T')[0])} - ${formatDate(latest.toISOString().split('T')[0])}`;
+            }
+        }
 
-            let filteredVessels = vessels.filter(vessel => {
-                // Filter by vessel completion status
-                const vesselCompleted = isVesselCompleted(vessel);
-                if (vesselStatusFilter === 'active' && vesselCompleted) {
-                    return false;
-                }
-                if (vesselStatusFilter === 'completed' && !vesselCompleted) {
-                    return false;
-                }
-                // 'all' shows both active and completed
-                
-                // Filter by vessel name
-                if (vesselFilter && vessel.vessel !== vesselFilter) {
-                    return false;
-                }
+        function getCurrentWeekDates() {
+            const now = new Date();
+            const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+            const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+            startOfWeek.setHours(0, 0, 0, 0);
+            endOfWeek.setHours(23, 59, 59, 999);
+            return { startOfWeek, endOfWeek };
+        }
 
-                // Filter by ETS date range
-                if (etsFromFilter || etsToFilter) {
-                    const vesselEts = new Date(vessel.ets);
-                    if (etsFromFilter && vesselEts < new Date(etsFromFilter)) {
-                        return false;
+        function countArrivingThisWeek(vessels) {
+            const { startOfWeek, endOfWeek } = getCurrentWeekDates();
+            let count = 0;
+            vessels.forEach(vessel => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                customersToCount.forEach(customer => {
+                    const etaDate = new Date(customer.eta);
+                    if (etaDate >= startOfWeek && etaDate <= endOfWeek) {
+                        count++;
                     }
-                    if (etsToFilter && vesselEts > new Date(etsToFilter)) {
-                        return false;
-                    }
-                }
-
-                // Filter customers within the vessel based on other criteria
-                let filteredCustomers = vessel.customers.filter(customer => {
-                    // Filter by ETA date range
-                    if (etaFromFilter || etaToFilter) {
-                        const customerEta = new Date(customer.eta);
-                        if (etaFromFilter && customerEta < new Date(etaFromFilter)) {
-                            return false;
-                        }
-                        if (etaToFilter && customerEta > new Date(etaToFilter)) {
-                            return false;
-                        }
-                    }
-
-                    // Filter by port
-                    if (portFilter && customer.pod !== portFilter) {
-                        return false;
-                    }
-
-                    return true;
                 });
-
-                // If no customers match the filters, don't show the vessel
-                if (filteredCustomers.length === 0) {
-                    return false;
-                }
-
-                // Filter by customer task status
-                if (statusFilter === 'incomplete') {
-                    // Show vessels that have at least one customer with incomplete tasks
-                    const hasIncompleteCustomers = filteredCustomers.some(customer => {
-                        return hasIncompleteTasks(customer.tasks);
-                    });
-                    if (!hasIncompleteCustomers) {
-                        return false;
-                    }
-                } else if (statusFilter === 'completed') {
-                    // Show vessels where ALL displayed customers have completed ALL tasks
-                    const allCustomersCompleted = filteredCustomers.every(customer => {
-                        return allTasksCompleted(customer.tasks);
-                    });
-                    if (!allCustomersCompleted) {
-                        return false;
-                    }
-                }
-
-                // Update vessel with filtered customers
-                vessel.filteredCustomers = filteredCustomers;
-                return true;
             });
-
-            // Apply sorting
-            return sortVessels(filteredVessels, sortBy);
+            return count;
         }
 
-        function hasIncompleteTasks(customerTasks) {
-            for (let i = 1; i <= TASKS.length; i++) {
-                const status = customerTasks[i];
-                const task = TASKS.find(t => t.id === i);
-                
-                if (task && task.customStates) {
-                    // For custom state tasks, first state is considered incomplete
-                    if (status === task.customStates[0]) {
-                        return true;
-                    }
-                } else {
-                    // For standard tasks
-                    if (status === 'incomplete' || status === 'in-progress') {
-                        return true;
-                    }
+        function updateStatsOnly() {
+            const filteredVessels = applyFilters(vesselsData);
+            
+            const totalVessels = filteredVessels.length;
+            const totalCustomers = filteredVessels.reduce((sum, vessel) => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                return sum + customersToCount.length;
+            }, 0);
+            const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
+            let pendingTasks = 0;
+            
+            filteredVessels.forEach(vessel => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                customersToCount.forEach(customer => {
+                    TASKS.forEach(task => {
+                        const status = customer.tasks[task.id];
+                        if (task.customStates) {
+                            if (status === task.customStates[0]) pendingTasks++;
+                        } else {
+                            if (status === 'incomplete' || status === 'in-progress') pendingTasks++;
+                        }
+                    });
+                });
+            });
+            
+            document.getElementById('totalVessels').textContent = totalVessels;
+            document.getElementById('totalCustomers').textContent = totalCustomers;
+            document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
+            document.getElementById('pendingTasks').textContent = pendingTasks;
+        }
+
+        function populateFilters() {
+            const vesselFilter = document.getElementById('vesselFilter');
+            const portFilter = document.getElementById('portFilter');
+            
+            const currentVessel = vesselFilter.value;
+            const currentPort = portFilter.value;
+            
+            vesselFilter.innerHTML = '<option value="">All Vessels</option>';
+            portFilter.innerHTML = '<option value="">All Ports</option>';
+            
+            const vessels = [...new Set(vesselsData.map(v => v.vessel))];
+            const ports = [...new Set(vesselsData.flatMap(v => v.customers.map(c => c.pod)))];
+            
+            vessels.forEach(vessel => {
+                const option = document.createElement('option');
+                option.value = vessel;
+                option.textContent = vessel;
+                if (vessel === currentVessel) option.selected = true;
+                vesselFilter.appendChild(option);
+            });
+            
+            ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                if (port === currentPort) option.selected = true;
+                portFilter.appendChild(option);
+            });
+        }
+
+        function toggleVessel(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.collapse-icon');
+            
+            const vesselInfo = header.querySelector('.vessel-info').textContent;
+            const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
+            const vesselName = header.querySelector('.vessel-title').textContent.replace('▼', '').replace('▶', '').trim();
+            const voyage = voyageMatch ? voyageMatch[1].trim() : '';
+            const vesselKey = `${vesselName}_${voyage}`;
+            
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                header.classList.remove('collapsed');
+                icon.textContent = '▼';
+                vesselCollapsedStates[vesselKey] = false;
+            } else {
+                content.classList.add('collapsed');
+                header.classList.add('collapsed');
+                icon.textContent = '▶';
+                vesselCollapsedStates[vesselKey] = true;
+            }
+        }
+
+        function toggleTasksView(customerCard, customerId) {
+            const container = customerCard.querySelector('.tasks-grid');
+            const button = customerCard.querySelector('.show-all-btn');
+            const isShowingAll = button.textContent.includes('Show Less');
+            
+            if (isShowingAll) {
+                button.textContent = '📋 Show All Tasks';
+                renderCustomerTasks(container, customerId, false);
+            } else {
+                button.textContent = '📋 Show Less';
+                renderCustomerTasks(container, customerId, true);
+            }
+        }
+
+        function updateCustomerField(vessel, bnumber, field, value) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData[field] = value;
+                    console.log(`Updated ${field} for ${bnumber} to ${value}`);
                 }
             }
-            return false;
         }
 
-        function allTasksCompleted(customerTasks) {
-            for (let i = 1; i <= TASKS.length; i++) {
-                const status = customerTasks[i];
-                const task = TASKS.find(t => t.id === i);
-                
-                if (task && task.customStates) {
-                    // For custom state tasks, last state is considered completed
-                    if (status !== task.customStates[task.customStates.length - 1]) {
-                        return false;
-                    }
-                } else {
-                    // For standard tasks
-                    if (status !== 'completed') {
-                        return false;
-                    }
+        function toggleInlandStatus(vessel, bnumber) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData.inland = cycleInlandStatus(customerData.inland);
+                    
+                    const customerCards = document.querySelectorAll('.customer-card');
+                    customerCards.forEach(card => {
+                        const bnumberInput = card.querySelector('input[value="' + bnumber + '"]');
+                        if (bnumberInput) {
+                            const inlandBadge = card.querySelector('.inland-badge');
+                            if (inlandBadge) {
+                                inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
+                                inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
+                            }
+                        }
+                    });
+                    
+                    updateStatsOnly();
                 }
             }
-            return true;
         }
-
-        // Store vessel collapsed states globally
-        let vesselCollapsedStates = {};
 
         function renderDashboard() {
             const container = document.getElementById('vesselsContainer');
             
-            // Save current collapsed states before re-rendering
+            // Save collapsed states
             const vesselHeaders = container.querySelectorAll('.vessel-header');
             vesselHeaders.forEach(header => {
                 const vesselInfo = header.querySelector('.vessel-info').textContent;
-                // Extract vessel and voyage from the info text
                 const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
                 const vesselName = header.querySelector('.vessel-title').textContent.replace('▼', '').replace('▶', '').trim();
                 const voyage = voyageMatch ? voyageMatch[1].trim() : '';
@@ -1630,13 +1353,10 @@ DEPLOYMENT STEPS:
             
             container.innerHTML = '';
             
-            // Apply filters and sorting
             const filteredVessels = applyFilters(vesselsData);
             
             filteredVessels.forEach(vessel => {
-                // Use filtered customers if available, otherwise use all customers
                 const customersToShow = vessel.filteredCustomers || vessel.customers;
-                // Sort customers by ETA
                 const sortedCustomers = [...customersToShow].sort((a, b) => new Date(a.eta) - new Date(b.eta));
                 
                 const vesselCard = document.createElement('div');
@@ -1715,7 +1435,7 @@ DEPLOYMENT STEPS:
                 
                 container.appendChild(vesselCard);
                 
-                // Restore collapsed state if it was previously collapsed
+                // Restore collapsed state
                 const vesselKey = `${vessel.vessel}_${vessel.voyage}`;
                 const vesselHeader = vesselCard.querySelector('.vessel-header');
                 const vesselContent = vesselCard.querySelector('.vessel-content');
@@ -1727,7 +1447,7 @@ DEPLOYMENT STEPS:
                     collapseIcon.textContent = '▶';
                 }
                 
-                // Render tasks for each customer
+                // Render tasks
                 sortedCustomers.forEach(customer => {
                     const customerId = `${vessel.vessel}|${customer.bnumber}`;
                     const tasksContainer = document.getElementById(`tasks-${customerId}`);
@@ -1735,370 +1455,64 @@ DEPLOYMENT STEPS:
                 });
             });
             
-            // Populate filters
             populateFilters();
         }
 
-        function updateCustomerField(vessel, bnumber, field, value) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
-                if (customerData) {
-                    customerData[field] = value;
-                    
-                    // Save to Google Apps Script for multi-user persistence
-                    if (field === 'notes' || field === 'email') {
-                        updateCustomerFieldInGoogleSheets(customerData.name, customerData.bol, field, value);
-                    }
-                    
-                    console.log(`Updated ${field} for ${bnumber} to ${value}`);
-                    // No need to re-render dashboard for field updates
-                }
-            }
-        }
-
-        function updateStatsOnly() {
-            // Apply filters to get current displayed data
-            const filteredVessels = applyFilters(vesselsData);
-            
-            // Calculate stats for all vessels (not just filtered)
-            const allActiveVessels = vesselsData.filter(v => !isVesselCompleted(v));
-            const allCompletedVessels = vesselsData.filter(v => isVesselCompleted(v));
-            
-            const totalVessels = filteredVessels.length;
-            const totalCustomers = filteredVessels.reduce((sum, vessel) => {
-                const customersToCount = vessel.filteredCustomers || vessel.customers;
-                return sum + customersToCount.length;
-            }, 0);
-            const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
-            let pendingTasks = 0;
-            
-            filteredVessels.forEach(vessel => {
-                const customersToCount = vessel.filteredCustomers || vessel.customers;
-                customersToCount.forEach(customer => {
-                    TASKS.forEach(task => {
-                        const status = customer.tasks[task.id];
-                        if (task.customStates) {
-                            // For custom state tasks, first state is considered incomplete
-                            if (status === task.customStates[0]) {
-                                pendingTasks++;
-                            }
-                        } else {
-                            // For standard tasks
-                            if (status === 'incomplete' || status === 'in-progress') {
-                                pendingTasks++;
-                            }
-                        }
-                    });
-                });
-            });
-            
-            // Update stat labels based on vessel status filter
-            const vesselStatusFilter = document.getElementById('vesselStatusFilter').value;
-            let vesselLabel = 'Vessels Shown';
-            if (vesselStatusFilter === 'active') {
-                vesselLabel = 'Active Vessels';
-            } else if (vesselStatusFilter === 'completed') {
-                vesselLabel = 'Completed Vessels';
-            }
-            
-            document.getElementById('totalVessels').textContent = totalVessels;
-            document.getElementById('totalCustomers').textContent = totalCustomers;
-            document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
-            document.getElementById('pendingTasks').textContent = pendingTasks;
-            
-            // Update stat labels
-            document.querySelector('#totalVessels').nextElementSibling.textContent = vesselLabel;
-            
-            // Add completion summary in header
-            const dataSourceElement = document.getElementById('dataSource');
-            const currentText = dataSourceElement.textContent;
-            if (!currentText.includes('Active:')) {
-                dataSourceElement.textContent = `${currentText} | Active: ${allActiveVessels.length} | Completed: ${allCompletedVessels.length}`;
-            }
-        }
-
-        function toggleInlandStatus(vessel, bnumber) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
-                if (customerData) {
-                    customerData.inland = cycleInlandStatus(customerData.inland);
-                    
-                    // Save to Google Apps Script for multi-user persistence
-                    updateCustomerFieldInGoogleSheets(customerData.name, customerData.bol, 'inland', customerData.inland);
-                    
-                    // Update just the inland badge instead of full re-render
-                    const customerCards = document.querySelectorAll('.customer-card');
-                    customerCards.forEach(card => {
-                        const bnumberInput = card.querySelector('input[value="' + bnumber + '"]');
-                        if (bnumberInput) {
-                            const inlandBadge = card.querySelector('.inland-badge');
-                            if (inlandBadge) {
-                                inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
-                                inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
-                            }
-                        }
-                    });
-                    
-                    updateStatsOnly();
-                }
-            }
-        }
-
-        function getInlandClass(inlandStatus) {
-            switch (inlandStatus) {
-                case 'Y':
-                    return 'inland-yes';
-                case 'N':
-                    return 'inland-no';
-                case 'UNKNOWN':
-                default:
-                    return 'inland-unknown';
-            }
-        }
-
-        function getInlandDisplay(inlandStatus) {
-            switch (inlandStatus) {
-                case 'Y':
-                    return 'Yes';
-                case 'N':
-                    return 'No';
-                case 'UNKNOWN':
-                default:
-                    return 'Unknown';
-            }
-        }
-
-        function toggleVessel(header) {
-            const content = header.nextElementSibling;
-            const icon = header.querySelector('.collapse-icon');
-            
-            // Get vessel key for state tracking
-            const vesselInfo = header.querySelector('.vessel-info').textContent;
-            const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
-            const vesselName = header.querySelector('.vessel-title').textContent.replace('▼', '').replace('▶', '').trim();
-            const voyage = voyageMatch ? voyageMatch[1].trim() : '';
-            const vesselKey = `${vesselName}_${voyage}`;
-            
-            if (content.classList.contains('collapsed')) {
-                content.classList.remove('collapsed');
-                header.classList.remove('collapsed');
-                icon.textContent = '▼';
-                vesselCollapsedStates[vesselKey] = false;
-            } else {
-                content.classList.add('collapsed');
-                header.classList.add('collapsed');
-                icon.textContent = '▶';
-                vesselCollapsedStates[vesselKey] = true;
-            }
-        }
-
-        function populateFilters() {
-            const vesselFilter = document.getElementById('vesselFilter');
-            const portFilter = document.getElementById('portFilter');
-            
-            // Store current values
-            const currentVessel = vesselFilter.value;
-            const currentPort = portFilter.value;
-            
-            // Clear existing options (except "All")
-            vesselFilter.innerHTML = '<option value="">All Vessels</option>';
-            portFilter.innerHTML = '<option value="">All Ports</option>';
-            
-            // Get unique vessels and ports from original data (not filtered)
-            const vessels = [...new Set(vesselsData.map(v => v.vessel))];
-            const ports = [...new Set(vesselsData.flatMap(v => v.customers.map(c => c.pod)))];
-            
-            vessels.forEach(vessel => {
-                const option = document.createElement('option');
-                option.value = vessel;
-                option.textContent = vessel;
-                if (vessel === currentVessel) option.selected = true;
-                vesselFilter.appendChild(option);
-            });
-            
-            ports.forEach(port => {
-                const option = document.createElement('option');
-                option.value = port;
-                option.textContent = port;
-                if (port === currentPort) option.selected = true;
-                portFilter.appendChild(option);
-            });
-        }
-
-        function updateStats() {
-            // Apply filters to get current displayed data
-            const filteredVessels = applyFilters(vesselsData);
-            
-            const totalVessels = filteredVessels.length;
-            const totalCustomers = filteredVessels.reduce((sum, vessel) => {
-                const customersToCount = vessel.filteredCustomers || vessel.customers;
-                return sum + customersToCount.length;
-            }, 0);
-            const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
-            let pendingTasks = 0;
-            
-            filteredVessels.forEach(vessel => {
-                const customersToCount = vessel.filteredCustomers || vessel.customers;
-                customersToCount.forEach(customer => {
-                    TASKS.forEach(task => {
-                        const status = customer.tasks[task.id];
-                        if (task.customStates) {
-                            // For custom state tasks, first state is considered incomplete
-                            if (status === task.customStates[0]) {
-                                pendingTasks++;
-                            }
-                        } else {
-                            // For standard tasks
-                            if (status === 'incomplete' || status === 'in-progress') {
-                                pendingTasks++;
-                            }
-                        }
-                    });
-                });
-            });
-            
-            document.getElementById('totalVessels').textContent = totalVessels;
-            document.getElementById('totalCustomers').textContent = totalCustomers;
-            document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
-            document.getElementById('pendingTasks').textContent = pendingTasks;
-        }
-
-        // Separate function for applying filters and rendering (used by Refresh Data button)
-        async function applyFiltersAndRender() {
-            // Show loading message
-            const dataSourceElement = document.getElementById('dataSource');
-            const originalText = dataSourceElement.textContent;
-            dataSourceElement.textContent = '🔄 Refreshing data from Google Sheets...';
-            
-            try {
-                // Try to reload fresh data from Google Apps Script
-                const sheetsData = await loadFromGoogleAppsScript();
-                if (sheetsData && sheetsData.length > 0) {
-                    // Merge with existing data to preserve local changes
-                    vesselsData = mergeVesselData(sheetsData, vesselsData);
-                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
-                    
-                    dataSourceElement.textContent = `✅ Data refreshed - ${sheetsData.length} vessel(s) | Multi-user sync enabled`;
-                    console.log('Data refreshed successfully:', sheetsData.length, 'vessels');
-                } else {
-                    // If no new data, just re-render existing data
-                    dataSourceElement.textContent = originalText;
-                    console.log('No new data received, re-rendering existing data');
-                }
-            } catch (error) {
-                console.error('Error refreshing data:', error);
-                dataSourceElement.textContent = originalText;
-                alert('Error refreshing data. Please check your Google Apps Script configuration.');
-            }
-            
-            // Re-render dashboard with current data
-            renderDashboard();
-            updateStatsOnly();
-        }
-
-        // Auto-load data from Google Apps Script on page load
-        async function autoLoadData() {
-            const dataSourceElement = document.getElementById('dataSource');
-            
-            // Check if Google Apps Script is configured
-            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                console.log('Google Apps Script not configured, using sample data');
-                return false;
-            }
-
-            // Load from Google Apps Script automatically
-            dataSourceElement.textContent = '🔄 Loading from Google Sheets via Apps Script...';
-            
-            try {
-                const sheetsData = await loadFromGoogleAppsScript();
-                if (sheetsData && sheetsData.length > 0) {
-                    // Replace sample data with Google Sheets data
-                    vesselsData = sheetsData;
-                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
-                    
-                    dataSourceElement.textContent = `✅ Multi-user sync enabled - ${sheetsData.length} vessel(s) loaded | All changes sync across users`;
-                    console.log('Data auto-loaded from Google Apps Script:', sheetsData.length, 'vessels');
-                    
-                    return true;
-                } else {
-                    console.log('No data received from Google Apps Script');
-                    dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Sample Data';
-                    return false;
-                }
-            } catch (error) {
-                console.error('Error auto-loading data:', error);
-                dataSourceElement.textContent = '❌ Google Apps Script Auto-Load Error - Using Sample Data | Set up Google Apps Script for multi-user sync';
-                return false;
-            }
-        }
-
-        // Import data function (used by Import Data button)
-        async function importData() {
-            const dataSourceElement = document.getElementById('dataSource');
-            
-            // Check if Google Apps Script is configured
-            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                console.log('Google Apps Script not configured yet');
-                alert('Please set up Google Apps Script first. Check the browser console for instructions.');
-                return;
-            }
-
-            // Load from Google Apps Script
-            dataSourceElement.textContent = '🔄 Importing fresh data from Google Sheets...';
-            const loadingOverlay = document.createElement('div');
-            loadingOverlay.innerHTML = '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; color: white; font-size: 1.5rem;">🔄 Importing fresh data from Google Sheets...</div>';
-            document.body.appendChild(loadingOverlay);
-            
-            try {
-                const sheetsData = await loadFromGoogleAppsScript();
-                if (sheetsData && sheetsData.length > 0) {
-                    // Merge with existing data to preserve task progress and updates
-                    vesselsData = mergeVesselData(sheetsData, vesselsData);
-                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData)); // Update original data
-                    
-                    dataSourceElement.textContent = `✅ Fresh data imported - ${sheetsData.length} vessel(s) | Multi-user sync enabled`;
-                    
-                    renderDashboard();
-                    updateStatsOnly();
-                    console.log('Fresh data successfully imported from Google Apps Script:', sheetsData.length, 'vessels');
-                } else {
-                    console.log('No data received from Google Apps Script');
-                    dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Current Data | Multi-user sync enabled';
-                }
-            } catch (error) {
-                console.error('Error importing data:', error);
-                dataSourceElement.textContent = '❌ Google Apps Script Import Error - Using Current Data | Check configuration';
-                alert('Error importing data from Google Apps Script. Please check your configuration.');
-            } finally {
-                document.body.removeChild(loadingOverlay);
-            }
-        }
-
         function exportData() {
-            // In real implementation, this would export to Excel/CSV
-            console.log('Exporting dashboard data...');
             alert('Export functionality would be implemented here');
+        }
+
+        function initializeSampleData() {
+            originalVesselsData = [
+                {
+                    vessel: "BRILLIANT ACE 0119A",
+                    voyage: "0119A",
+                    ets: "2025-06-12",
+                    customers: [
+                        {
+                            name: "PELLEGRINO",
+                            bnumber: "B2501_",
+                            bol: "MOLU18007433610",
+                            email: "pellegrino@example.com",
+                            notes: "Customer prefers afternoon pickup",
+                            pod: "JACKSONVILLE",
+                            eta: "2025-07-13",
+                            inland: "UNKNOWN",
+                            tasks: {
+                                1: "completed", 2: "completed", 3: "in-progress", 4: "incomplete",
+                                5: "incomplete", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
+                                9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
+                                13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                                17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
+                            },
+                            taskDates: {
+                                1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
+                            }
+                        }
+                    ]
+                }
+            ];
+            vesselsData = JSON.parse(JSON.stringify(originalVesselsData));
         }
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize with sample data first
             initializeSampleData();
             
-            // Try to auto-load from Google Apps Script if configured
-            const loadedFromAppsScript = await autoLoadData();
-            
-            // Update data source indicator
             const dataSourceElement = document.getElementById('dataSource');
             
-            if (!loadedFromAppsScript) {
-                if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                    dataSourceElement.textContent = '📊 Using Sample Data - Set up Google Apps Script for multi-user sync (see console)';
+            try {
+                const sheetsData = await loadFromGoogleAppsScript();
+                if (sheetsData && sheetsData.length > 0) {
+                    vesselsData = sheetsData;
+                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
+                    dataSourceElement.textContent = `✅ Multi-user sync enabled - ${sheetsData.length} vessel(s) loaded | Task states preserved`;
                 } else {
-                    dataSourceElement.textContent = '📊 Google Apps Script configured - Multi-user sync ready';
+                    dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Sample Data';
                 }
+            } catch (error) {
+                console.error('Auto-load error:', error);
+                dataSourceElement.textContent = '❌ Google Apps Script Error - Using Sample Data';
             }
             
             renderDashboard();
