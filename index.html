@@ -210,6 +210,25 @@
         .customer-details {
             font-size: 0.9rem;
             color: #4a5568;
+            margin-bottom: 0.5rem;
+        }
+
+        .customer-notes {
+            font-size: 0.9rem;
+            color: #4a5568;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            min-height: 2rem;
+            resize: vertical;
+        }
+
+        .customer-notes:focus {
+            outline: none;
+            border-color: #e53e3e;
+            box-shadow: 0 0 0 2px rgba(229, 62, 62, 0.1);
         }
 
         .eta-badge {
@@ -535,11 +554,11 @@
     <script>
         // Google Sheets API configuration
         const GOOGLE_SHEETS_CONFIG = {
-            apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
-            spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54', // Replace with your actual spreadsheet ID
+            apiKey: 'YOUR_API_KEY_HERE', // Replace with your actual API key
+            spreadsheetId: 'YOUR_SPREADSHEET_ID_HERE', // Replace with your actual spreadsheet ID
             ranges: [
                 'Manifest_Data!A:AK',
-                'Customer_Details!A:C',
+                'Customer_Details!A:D', // Updated to include Notes column
                 'Task_Status!A:V'
             ]
         };
@@ -613,6 +632,7 @@
                     bnumber: `B${row['Ref No.']}`, // Use Ref No. as B#
                     bol: row['BL No.'],
                     email: customerDetail.Email || '',
+                    notes: customerDetail.Notes || '', // Add notes field
                     pod: row.Port,
                     eta: parseManifestDate(row.ETA),
                     inland: customerDetail.Inland || 'UNKNOWN',
@@ -716,8 +736,6 @@
             // 3. Use Google Sheets API to write the change
         }
 
-        // Task definitions based on AutoHub Status Sheet workflow
-
         // Sample data (this would come from Google Sheets)
         let vesselsData = [
             {
@@ -730,6 +748,7 @@
                         bnumber: "B2501_",
                         bol: "MOLU18007433610",
                         email: "pellegrino@example.com",
+                        notes: "Customer prefers afternoon pickup",
                         pod: "JACKSONVILLE",
                         eta: "2025-07-13",
                         inland: "UNKNOWN",
@@ -742,92 +761,6 @@
                         },
                         taskDates: {
                             1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
-                        }
-                    },
-                    {
-                        name: "MARTINEZ",
-                        bnumber: "B2501_",
-                        bol: "MOLU18007427936",
-                        email: "martinez@example.com",
-                        pod: "JACKSONVILLE",
-                        eta: "2025-07-13",
-                        inland: "Y",
-                        tasks: {
-                            1: "completed", 2: "completed", 3: "completed", 4: "completed",
-                            5: "completed", 6: "RECEIVED", 7: "incomplete", 8: "incomplete",
-                            9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
-                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                            17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
-                        },
-                        taskDates: {
-                            1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-03", 4: "2025-06-04", 5: "2025-06-05", 6: "2025-06-06"
-                        }
-                    },
-                    {
-                        name: "FELICIANO",
-                        bnumber: "B2501_",
-                        bol: "MOLU18007432763",
-                        email: "feliciano@example.com",
-                        pod: "BALTIMORE",
-                        eta: "2025-07-21",
-                        inland: "Y",
-                        tasks: {
-                            1: "completed", 2: "completed", 3: "completed", 4: "completed",
-                            5: "completed", 6: "RECEIVED", 7: "completed", 8: "completed",
-                            9: "completed", 10: "PAID", 11: "completed", 12: "in-progress",
-                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                            17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
-                        },
-                        taskDates: {
-                            1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-03", 4: "2025-06-04",
-                            5: "2025-06-05", 6: "2025-06-06", 7: "2025-06-07", 8: "2025-06-08",
-                            9: "2025-06-09", 10: "2025-06-10", 11: "2025-06-11", 12: "2025-06-12"
-                        }
-                    }
-                ]
-            },
-            {
-                vessel: "ORCA ACE 0056A",
-                voyage: "0056A",
-                ets: "2025-05-23",
-                customers: [
-                    {
-                        name: "JOSHUA KEAGEN BROWN",
-                        bnumber: "B2501023",
-                        bol: "MOLU18007432953",
-                        email: "jbrown@example.com",
-                        pod: "TACOMA",
-                        eta: "2025-06-09",
-                        inland: "N",
-                        tasks: {
-                            1: "completed", 2: "completed", 3: "completed", 4: "completed",
-                            5: "completed", 6: "RECEIVED", 7: "completed", 8: "incomplete",
-                            9: "incomplete", 10: "PAID", 11: "incomplete", 12: "incomplete",
-                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                            17: "incomplete", 19: "incomplete", 20: "incomplete"
-                        },
-                        taskDates: {
-                            1: "2025-05-25", 2: "2025-05-26", 3: "2025-05-27", 4: "2025-05-28",
-                            5: "2025-05-29", 6: "2025-05-30", 7: "2025-05-31", 10: "2025-06-03"
-                        }
-                    },
-                    {
-                        name: "P1 MOTORS LLC",
-                        bnumber: "B2501027",
-                        bol: "MOLU18007433610",
-                        email: "p1motors@example.com",
-                        pod: "LOS ANGELES",
-                        eta: "2025-06-15",
-                        inland: "N",
-                        tasks: {
-                            1: "completed", 2: "completed", 3: "completed", 4: "incomplete",
-                            5: "completed", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
-                            9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
-                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                            17: "incomplete", 19: "incomplete", 20: "incomplete"
-                        },
-                        taskDates: {
-                            1: "2025-05-25", 2: "2025-05-26", 3: "2025-05-27", 5: "2025-05-29"
                         }
                     }
                 ]
@@ -1186,6 +1119,13 @@
                                                               onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'email', this.value)"
                                                               style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
                                                               placeholder="Enter email address">
+                                            </div>
+                                            <div class="customer-details">
+                                                Notes: 
+                                                <textarea class="customer-notes" 
+                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'notes', this.value)"
+                                                         placeholder="Add customer notes..."
+                                                         rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
                                         <div class="eta-badge">ETA: ${formatDate(customer.eta)}</div>
