@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoHub Vessel & Customer Management Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header .subtitle {
+            text-align: center;
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-top: 0.5rem;
+        }
+
+        .controls {
+            background: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            border-radius: 0 0 15px 15px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            align-items: end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .filter-group label {
+            font-weight: bold;
+            color: #4a5568;
+            font-size: 0.9rem;
+        }
+
+        select, input {
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #e53e3e;
+            box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        .vessel-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .vessel-card:hover {
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+            transform: translateY(-5px);
+        }
+
+        .vessel-header {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .vessel-header:hover {
+            background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
+        }
+
+        .vessel-title {
+            font-size: 1.8rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .vessel-info {
+            margin-top: 0.5rem;
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .collapse-icon {
+            font-size: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .vessel-header.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .vessel-content {
+            padding: 2rem;
+            max-height: 2000px;
+            overflow: hidden;
+            transition: all 0.5s ease;
+        }
+
+        .vessel-content.collapsed {
+            max-height: 0;
+            padding: 0 2rem;
+        }
+
+        .customer-card {
+            background: #f8f9fa;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .customer-card:hover {
+            border-color: #e53e3e;
+            box-shadow: 0 4px 12px rgba(229, 62, 62, 0.1);
+        }
+
+        .customer-header {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .customer-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .customer-details {
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+
+        .eta-badge {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .port-badge {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .inland-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .inland-yes {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            color: white;
+        }
+
+        .inland-no {
+            background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+            color: white;
+        }
+
+        .inland-unknown {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            color: white;
+        }
+
+        .tasks-container {
+            margin-top: 1rem;
+        }
+
+        .tasks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .tasks-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #2d3748;
+        }
+
+        .show-all-btn {
+            background: none;
+            border: 2px solid #e53e3e;
+            color: #e53e3e;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .show-all-btn:hover {
+            background: #e53e3e;
+            color: white;
+        }
+
+        .tasks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .task-item {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .task-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .task-item.incomplete {
+            border-color: #fed7d7;
+            background: #fffaf9;
+        }
+
+        .task-item.in-progress {
+            border-color: #fbd38d;
+            background: #fffbf0;
+        }
+
+        .task-item.completed {
+            border-color: #c6f6d5;
+            background: #f0fff4;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .task-number {
+            background: #4a5568;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .task-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-incomplete {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .status-in-progress {
+            background: #fbd38d;
+            color: #d69e2e;
+        }
+
+        .status-completed {
+            background: #c6f6d5;
+            color: #38a169;
+        }
+
+        .status-not-received,
+        .status-unpaid {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .status-received,
+        .status-paid {
+            background: #c6f6d5;
+            color: #38a169;
+        }
+
+        .task-name {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 0.25rem;
+        }
+
+        .task-description {
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-top: 4px solid #e53e3e;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #e53e3e;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #4a5568;
+            font-weight: bold;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                padding: 1rem;
+            }
+            
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .customer-header {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            
+            .tasks-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚢 AutoHub Dashboard</h1>
+        <div class="subtitle">Vessel & Customer Management System</div>
+        <div class="subtitle" id="dataSource" style="font-size: 0.9rem; opacity: 0.8;">📊 Using Sample Data - Configure Google Sheets API</div>
+    </div>
+
+    <div class="controls">
+        <div class="controls-grid">
+            <div class="filter-group">
+                <label for="vesselFilter">Filter by Vessel:</label>
+                <select id="vesselFilter">
+                    <option value="">All Vessels</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="portFilter">Filter by Port:</label>
+                <select id="portFilter">
+                    <option value="">All Ports</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="statusFilter">Filter by Status:</label>
+                <select id="statusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="incomplete">Incomplete Tasks</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="etaFromFilter">ETA From:</label>
+                <input type="date" id="etaFromFilter">
+            </div>
+            <div class="filter-group">
+                <label for="etaToFilter">ETA To:</label>
+                <input type="date" id="etaToFilter">
+            </div>
+            <div class="filter-group">
+                <label for="etsFromFilter">ETS From:</label>
+                <input type="date" id="etsFromFilter">
+            </div>
+            <div class="filter-group">
+                <label for="etsToFilter">ETS To:</label>
+                <input type="date" id="etsToFilter">
+            </div>
+            <div>
+                <button class="btn" onclick="refreshData()">🔄 Refresh Data</button>
+                <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalVessels">0</div>
+                <div class="stat-label">Active Vessels</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalCustomers">0</div>
+                <div class="stat-label">Total Customers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pendingTasks">0</div>
+                <div class="stat-label">Pending Tasks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="completedTasks">0</div>
+                <div class="stat-label">Completed Tasks</div>
+            </div>
+        </div>
+
+        <div id="vesselsContainer">
+            <!-- Vessels will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        // Google Sheets API configuration
+        const GOOGLE_SHEETS_CONFIG = {
+            apiKey: 'YOUR_API_KEY_HERE', // Replace with your actual API key
+            spreadsheetId: 'YOUR_SPREADSHEET_ID_HERE', // Replace with your actual spreadsheet ID
+            ranges: [
+                'Manifest_Data!A:AK',
+                'Customer_Details!A:C',
+                'Task_Status!A:V'
+            ]
+        };
+
+        // Task definitions based on AutoHub Status Sheet workflow
+        const TASKS = [
+            { id: 1, name: "ISF Transmit", description: "Submit Import Security Filing" },
+            { id: 2, name: "ISF Match", description: "Verify ISF matches manifest" },
+            { id: 3, name: "Entry Created / Validate 7501", description: "Create customs entry and validate forms" },
+            { id: 4, name: "Inland Confirmation", description: "Confirm inland transportation requirements" },
+            { id: 5, name: "AWIS Invoice to AutoHub", description: "Send invoice to AutoHub" },
+            { id: 6, name: "NOA Received", description: "Receive Notice of Arrival from carrier", customStates: ["NOT RECEIVED", "RECEIVED"] },
+            { id: 7, name: "NOA to Accounting", description: "Forward NOA to accounting department" },
+            { id: 8, name: "Bitrix Updated with ETA", description: "Update customer system with arrival time" },
+            { id: 9, name: "Arrival Status Email", description: "Send arrival notification in Bitrix" },
+            { id: 10, name: "Check Payment Received in Betrix", description: "Confirm payment received from AutoHub", customStates: ["UNPAID", "PAID"] },
+            { id: 11, name: "Submit Entry to customs and for Tacoma, Seattle, and Charleston the Summary Packet", description: "Submit entry to customs" },
+            { id: 12, name: "CBP Release", description: "Obtain customs release" },
+            { id: 13, name: "Request SSL/Terminal Release", description: "Request steamship line and terminal release" },
+            { id: 14, name: "SSL/Terminal Release Confirmed", description: "Confirm release from SSL and terminal" },
+            { id: 15, name: "Release Notification to Customer", description: "Notify customer of cargo release" },
+            { id: 16, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
+            { id: 17, name: "Mark Customs Clear in Bitrix", description: "Update customs clearance status" },
+            { id: 18, name: "Dispatch Memo to TCAS", description: "Send dispatch instructions to transport company" },
+            { id: 19, name: "REG Docs to CBP for Stamp", description: "Submit registration documents for stamping" },
+            { id: 20, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
+        ];
+
+        // Date parsing function for manifest dates
+        function parseManifestDate(dateString) {
+            if (!dateString) return null;
+            
+            // Handle DD/MM/YYYY format from manifest
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                const day = parts[0];
+                const month = parts[1];
+                const year = parts[2];
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            return dateString;
+        }
+
+        // Transform manifest data to dashboard format
+        function transformManifestData(manifestData, customerDetails, taskStatus) {
+            const vesselsMap = new Map();
+            
+            manifestData.forEach(row => {
+                const vesselKey = `${row.Vessel}_${row['Voy.']}`;
+                
+                if (!vesselsMap.has(vesselKey)) {
+                    vesselsMap.set(vesselKey, {
+                        vessel: row.Vessel,
+                        voyage: row['Voy.'],
+                        ets: parseManifestDate(row.ETS),
+                        customers: []
+                    });
+                }
+                
+                const vessel = vesselsMap.get(vesselKey);
+                
+                // Find customer details
+                const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
+                
+                // Find task status
+                const taskData = taskStatus.find(t => t.Customer === row.Customer && t.BL_No === row['BL No.']) || {};
+                
+                // Create customer object
+                const customer = {
+                    name: row.Customer,
+                    bnumber: `B${row['Ref No.']}`, // Use Ref No. as B#
+                    bol: row['BL No.'],
+                    email: customerDetail.Email || '',
+                    pod: row.Port,
+                    eta: parseManifestDate(row.ETA),
+                    inland: customerDetail.Inland || 'UNKNOWN',
+                    tasks: {},
+                    taskDates: {}
+                };
+                
+                // Initialize tasks
+                for (let i = 1; i <= 20; i++) {
+                    const taskField = `task_${i}_${getTaskFieldName(i)}`;
+                    customer.tasks[i] = taskData[taskField] || getDefaultTaskStatus(i);
+                }
+                
+                vessel.customers.push(customer);
+            });
+            
+            return Array.from(vesselsMap.values());
+        }
+
+        function getTaskFieldName(taskId) {
+            const fieldNames = {
+                1: 'isf_transmit',
+                2: 'isf_match', 
+                3: 'entry_created',
+                4: 'inland_confirm',
+                5: 'awis_invoice',
+                6: 'noa_received',
+                7: 'noa_accounting',
+                8: 'bitrix_eta',
+                9: 'arrival_email',
+                10: 'payment_check',
+                11: 'entry_transmitted',
+                12: 'cbp_release',
+                13: 'ssl_request',
+                14: 'ssl_confirmed',
+                15: 'release_notification',
+                16: 'upload_release_docs',
+                17: 'customs_clear_bitrix',
+                18: 'dispatch_memo',
+                19: 'reg_docs_cbp',
+                20: 'reg_docs_bitrix'
+            };
+            return fieldNames[taskId] || 'unknown';
+        }
+
+        function getDefaultTaskStatus(taskId) {
+            // Tasks with custom states
+            if (taskId === 6) return 'NOT RECEIVED';
+            if (taskId === 10) return 'UNPAID';
+            return 'incomplete';
+        }
+
+        // Fetch data from Google Sheets
+        async function fetchGoogleSheetsData() {
+            try {
+                const responses = await Promise.all(
+                    GOOGLE_SHEETS_CONFIG.ranges.map(range =>
+                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/values/${range}?key=${GOOGLE_SHEETS_CONFIG.apiKey}`)
+                            .then(response => response.json())
+                    )
+                );
+
+                const [manifestResponse, customerDetailsResponse, taskStatusResponse] = responses;
+                
+                // Parse the data
+                const manifestData = parseSheetData(manifestResponse.values);
+                const customerDetails = parseSheetData(customerDetailsResponse.values);
+                const taskStatus = parseSheetData(taskStatusResponse.values);
+                
+                // Transform to dashboard format
+                return transformManifestData(manifestData, customerDetails, taskStatus);
+                
+            } catch (error) {
+                console.error('Error fetching Google Sheets data:', error);
+                return null;
+            }
+        }
+
+        function parseSheetData(values) {
+            if (!values || values.length <= 1) return [];
+            
+            const headers = values[0];
+            return values.slice(1).map(row => {
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header] = row[index] || '';
+                });
+                return obj;
+            });
+        }
+
+        // Function to update task status back to Google Sheets
+        async function updateTaskInGoogleSheets(customer, blNo, taskId, newStatus) {
+            // This would implement the write-back functionality
+            // For now, we'll just log the change
+            console.log(`Would update Google Sheets: ${customer} - Task ${taskId} to ${newStatus}`);
+            
+            // In production, you would:
+            // 1. Find the correct row in Task_Status sheet
+            // 2. Update the specific task column  
+            // 3. Use Google Sheets API to write the change
+        }
+
+        // Task definitions based on AutoHub Status Sheet workflow
+
+        // Sample data (this would come from Google Sheets)
+        let vesselsData = [
+            {
+                vessel: "BRILLIANT ACE 0119A",
+                voyage: "0119A",
+                ets: "2025-06-12",
+                customers: [
+                    {
+                        name: "PELLEGRINO",
+                        bnumber: "B2501_",
+                        bol: "MOLU18007433610",
+                        email: "pellegrino@example.com",
+                        pod: "JACKSONVILLE",
+                        eta: "2025-07-13",
+                        inland: "UNKNOWN",
+                        tasks: {
+                            1: "completed", 2: "completed", 3: "in-progress", 4: "incomplete",
+                            5: "incomplete", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
+                            9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
+                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                            17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
+                        },
+                        taskDates: {
+                            1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
+                        }
+                    },
+                    {
+                        name: "MARTINEZ",
+                        bnumber: "B2501_",
+                        bol: "MOLU18007427936",
+                        email: "martinez@example.com",
+                        pod: "JACKSONVILLE",
+                        eta: "2025-07-13",
+                        inland: "Y",
+                        tasks: {
+                            1: "completed", 2: "completed", 3: "completed", 4: "completed",
+                            5: "completed", 6: "RECEIVED", 7: "incomplete", 8: "incomplete",
+                            9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
+                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                            17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
+                        },
+                        taskDates: {
+                            1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-03", 4: "2025-06-04", 5: "2025-06-05", 6: "2025-06-06"
+                        }
+                    },
+                    {
+                        name: "FELICIANO",
+                        bnumber: "B2501_",
+                        bol: "MOLU18007432763",
+                        email: "feliciano@example.com",
+                        pod: "BALTIMORE",
+                        eta: "2025-07-21",
+                        inland: "Y",
+                        tasks: {
+                            1: "completed", 2: "completed", 3: "completed", 4: "completed",
+                            5: "completed", 6: "RECEIVED", 7: "completed", 8: "completed",
+                            9: "completed", 10: "PAID", 11: "completed", 12: "in-progress",
+                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                            17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
+                        },
+                        taskDates: {
+                            1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-03", 4: "2025-06-04",
+                            5: "2025-06-05", 6: "2025-06-06", 7: "2025-06-07", 8: "2025-06-08",
+                            9: "2025-06-09", 10: "2025-06-10", 11: "2025-06-11", 12: "2025-06-12"
+                        }
+                    }
+                ]
+            },
+            {
+                vessel: "ORCA ACE 0056A",
+                voyage: "0056A",
+                ets: "2025-05-23",
+                customers: [
+                    {
+                        name: "JOSHUA KEAGEN BROWN",
+                        bnumber: "B2501023",
+                        bol: "MOLU18007432953",
+                        email: "jbrown@example.com",
+                        pod: "TACOMA",
+                        eta: "2025-06-09",
+                        inland: "N",
+                        tasks: {
+                            1: "completed", 2: "completed", 3: "completed", 4: "completed",
+                            5: "completed", 6: "RECEIVED", 7: "completed", 8: "incomplete",
+                            9: "incomplete", 10: "PAID", 11: "incomplete", 12: "incomplete",
+                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                            17: "incomplete", 19: "incomplete", 20: "incomplete"
+                        },
+                        taskDates: {
+                            1: "2025-05-25", 2: "2025-05-26", 3: "2025-05-27", 4: "2025-05-28",
+                            5: "2025-05-29", 6: "2025-05-30", 7: "2025-05-31", 10: "2025-06-03"
+                        }
+                    },
+                    {
+                        name: "P1 MOTORS LLC",
+                        bnumber: "B2501027",
+                        bol: "MOLU18007433610",
+                        email: "p1motors@example.com",
+                        pod: "LOS ANGELES",
+                        eta: "2025-06-15",
+                        inland: "N",
+                        tasks: {
+                            1: "completed", 2: "completed", 3: "completed", 4: "incomplete",
+                            5: "completed", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
+                            9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
+                            13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
+                            17: "incomplete", 19: "incomplete", 20: "incomplete"
+                        },
+                        taskDates: {
+                            1: "2025-05-25", 2: "2025-05-26", 3: "2025-05-27", 5: "2025-05-29"
+                        }
+                    }
+                ]
+            }
+        ];
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function getNextTasks(customerTasks, limit = 3) {
+            const nextTasks = [];
+            for (let i = 1; i <= TASKS.length; i++) {
+                const status = customerTasks[i];
+                const task = TASKS.find(t => t.id === i);
+                let isIncomplete = false;
+                
+                if (task && task.customStates) {
+                    // For custom state tasks, first state is considered incomplete
+                    isIncomplete = status === task.customStates[0];
+                } else {
+                    // For standard tasks
+                    isIncomplete = status === 'incomplete' || status === 'in-progress';
+                }
+                
+                if (isIncomplete) {
+                    nextTasks.push(i);
+                    if (nextTasks.length >= limit) break;
+                }
+            }
+            return nextTasks;
+        }
+
+        function getAllTasks(customerTasks) {
+            const allTasks = [];
+            for (let i = 1; i <= TASKS.length; i++) {
+                allTasks.push(i);
+            }
+            return allTasks;
+        }
+
+        function updateTaskStatus(vessel, customer, taskId, newStatus) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === customer);
+                if (customerData) {
+                    customerData.tasks[taskId] = newStatus;
+                    
+                    // Update task date
+                    if (!customerData.taskDates) {
+                        customerData.taskDates = {};
+                    }
+                    
+                    if (newStatus === 'in-progress' || newStatus === 'completed') {
+                        customerData.taskDates[taskId] = new Date().toISOString().split('T')[0];
+                    }
+                    
+                    // Update Google Sheets if configured
+                    if (GOOGLE_SHEETS_CONFIG.apiKey !== 'YOUR_API_KEY_HERE') {
+                        updateTaskInGoogleSheets(customerData.name, customerData.bol, taskId, newStatus);
+                    }
+                    
+                    renderDashboard();
+                    updateStats();
+                }
+            }
+        }
+
+        function cycleTaskStatus(currentStatus, taskId) {
+            const task = TASKS.find(t => t.id === taskId);
+            
+            if (task && task.customStates) {
+                // Handle custom states for specific tasks
+                const states = task.customStates;
+                const currentIndex = states.indexOf(currentStatus);
+                const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % states.length;
+                return states[nextIndex];
+            } else {
+                // Handle standard states
+                switch (currentStatus) {
+                    case 'incomplete':
+                        return 'in-progress';
+                    case 'in-progress':
+                        return 'completed';
+                    case 'completed':
+                        return 'incomplete';
+                    default:
+                        return 'incomplete';
+                }
+            }
+        }
+
+        function cycleInlandStatus(currentStatus) {
+            switch (currentStatus) {
+                case 'UNKNOWN':
+                    return 'Y';
+                case 'Y':
+                    return 'N';
+                case 'N':
+                    return 'UNKNOWN';
+                default:
+                    return 'UNKNOWN';
+            }
+        }
+
+        function shouldShowTask(taskId, customerData) {
+            // Hide task 18 (Dispatch Memo to TCAS) if inland is "N"
+            if (taskId === 18 && customerData.inland === 'N') {
+                return false;
+            }
+            return true;
+        }
+
+        function toggleTasksView(customerCard, customerId) {
+            const container = customerCard.querySelector('.tasks-grid');
+            const button = customerCard.querySelector('.show-all-btn');
+            const isShowingAll = button.textContent.includes('Show Less');
+            
+            if (isShowingAll) {
+                button.textContent = '📋 Show All Tasks';
+                renderCustomerTasks(container, customerId, false);
+            } else {
+                button.textContent = '📋 Show Less';
+                renderCustomerTasks(container, customerId, true);
+            }
+        }
+
+        function renderCustomerTasks(container, customerId, showAll = false) {
+            const [vessel, customer] = customerId.split('|');
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            const customerData = vesselData.customers.find(c => c.bnumber === customer);
+            
+            const tasksToShow = showAll ? 
+                getAllTasks(customerData.tasks) : 
+                getNextTasks(customerData.tasks, 3);
+            
+            container.innerHTML = '';
+            
+            tasksToShow.forEach(taskId => {
+                // Check if task should be shown
+                if (!shouldShowTask(taskId, customerData)) {
+                    return;
+                }
+                
+                const task = TASKS.find(t => t.id === taskId);
+                const status = customerData.tasks[taskId] || 'incomplete';
+                const taskDate = customerData.taskDates && customerData.taskDates[taskId] ? 
+                    formatDate(customerData.taskDates[taskId]) : '';
+                
+                const taskElement = document.createElement('div');
+                taskElement.className = `task-item ${status.replace(' ', '-').toLowerCase()}`;
+                taskElement.onclick = () => {
+                    const newStatus = cycleTaskStatus(status, taskId);
+                    updateTaskStatus(vessel, customer, taskId, newStatus);
+                };
+                
+                let displayStatus = status;
+                let statusClass = status.replace(' ', '-').toLowerCase();
+                if (task.customStates) {
+                    displayStatus = status;
+                    statusClass = status.replace(' ', '-').toLowerCase();
+                } else {
+                    displayStatus = status.replace('-', ' ').toUpperCase();
+                    statusClass = status;
+                }
+                
+                taskElement.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-number">${taskId}</div>
+                        <div class="task-status status-${statusClass}">${displayStatus}</div>
+                    </div>
+                    <div class="task-name">${task.name}</div>
+                    <div class="task-description">${task.description}</div>
+                    ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
+                `;
+                
+                container.appendChild(taskElement);
+            });
+        }
+
+        function applyFilters(vessels) {
+            const vesselFilter = document.getElementById('vesselFilter').value;
+            const portFilter = document.getElementById('portFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const etaFromFilter = document.getElementById('etaFromFilter').value;
+            const etaToFilter = document.getElementById('etaToFilter').value;
+            const etsFromFilter = document.getElementById('etsFromFilter').value;
+            const etsToFilter = document.getElementById('etsToFilter').value;
+
+            return vessels.filter(vessel => {
+                // Filter by vessel name
+                if (vesselFilter && vessel.vessel !== vesselFilter) {
+                    return false;
+                }
+
+                // Filter by ETS date range
+                if (etsFromFilter || etsToFilter) {
+                    const vesselEts = new Date(vessel.ets);
+                    if (etsFromFilter && vesselEts < new Date(etsFromFilter)) {
+                        return false;
+                    }
+                    if (etsToFilter && vesselEts > new Date(etsToFilter)) {
+                        return false;
+                    }
+                }
+
+                // Filter customers within the vessel based on other criteria
+                let filteredCustomers = vessel.customers.filter(customer => {
+                    // Filter by ETA date range
+                    if (etaFromFilter || etaToFilter) {
+                        const customerEta = new Date(customer.eta);
+                        if (etaFromFilter && customerEta < new Date(etaFromFilter)) {
+                            return false;
+                        }
+                        if (etaToFilter && customerEta > new Date(etaToFilter)) {
+                            return false;
+                        }
+                    }
+
+                    // Filter by port
+                    if (portFilter && customer.pod !== portFilter) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+                // If no customers match the filters, don't show the vessel
+                if (filteredCustomers.length === 0) {
+                    return false;
+                }
+
+                // Filter by status
+                if (statusFilter === 'incomplete') {
+                    // Show vessels that have at least one customer with incomplete tasks
+                    const hasIncompleteCustomers = filteredCustomers.some(customer => {
+                        return hasIncompleteTasks(customer.tasks);
+                    });
+                    if (!hasIncompleteCustomers) {
+                        return false;
+                    }
+                } else if (statusFilter === 'completed') {
+                    // Show vessels where ALL displayed customers have completed ALL tasks
+                    const allCustomersCompleted = filteredCustomers.every(customer => {
+                        return allTasksCompleted(customer.tasks);
+                    });
+                    if (!allCustomersCompleted) {
+                        return false;
+                    }
+                }
+
+                // Update vessel with filtered customers
+                vessel.filteredCustomers = filteredCustomers;
+                return true;
+            });
+        }
+
+        function hasIncompleteTasks(customerTasks) {
+            for (let i = 1; i <= TASKS.length; i++) {
+                const status = customerTasks[i];
+                const task = TASKS.find(t => t.id === i);
+                
+                if (task && task.customStates) {
+                    // For custom state tasks, first state is considered incomplete
+                    if (status === task.customStates[0]) {
+                        return true;
+                    }
+                } else {
+                    // For standard tasks
+                    if (status === 'incomplete' || status === 'in-progress') {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function allTasksCompleted(customerTasks) {
+            for (let i = 1; i <= TASKS.length; i++) {
+                const status = customerTasks[i];
+                const task = TASKS.find(t => t.id === i);
+                
+                if (task && task.customStates) {
+                    // For custom state tasks, last state is considered completed
+                    if (status !== task.customStates[task.customStates.length - 1]) {
+                        return false;
+                    }
+                } else {
+                    // For standard tasks
+                    if (status !== 'completed') {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function renderDashboard() {
+            const container = document.getElementById('vesselsContainer');
+            container.innerHTML = '';
+            
+            // Sort vessels by ETS (oldest first)
+            const sortedVessels = [...vesselsData].sort((a, b) => new Date(a.ets) - new Date(b.ets));
+            
+            // Apply filters
+            const filteredVessels = applyFilters(sortedVessels);
+            
+            filteredVessels.forEach(vessel => {
+                // Use filtered customers if available, otherwise use all customers
+                const customersToShow = vessel.filteredCustomers || vessel.customers;
+                // Sort customers by ETA
+                const sortedCustomers = [...customersToShow].sort((a, b) => new Date(a.eta) - new Date(b.eta));
+                
+                const vesselCard = document.createElement('div');
+                vesselCard.className = 'vessel-card';
+                
+                vesselCard.innerHTML = `
+                    <div class="vessel-header" onclick="toggleVessel(this)">
+                        <div class="vessel-title">
+                            ${vessel.vessel}
+                            <span class="collapse-icon">▼</span>
+                        </div>
+                        <div class="vessel-info">
+                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ${sortedCustomers.length} Customer(s)
+                        </div>
+                    </div>
+                    <div class="vessel-content">
+                        ${sortedCustomers.map(customer => {
+                            const customerId = `${vessel.vessel}|${customer.bnumber}`;
+                            const nextTasks = getNextTasks(customer.tasks, 3);
+                            
+                            return `
+                                <div class="customer-card">
+                                    <div class="customer-header">
+                                        <div>
+                                            <div class="customer-name">
+                                                <input type="text" value="${customer.name}" 
+                                                       onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'name', this.value)"
+                                                       style="border: none; background: transparent; font-size: 1.3rem; font-weight: bold; color: #2d3748; width: 100%; padding: 2px;">
+                                            </div>
+                                            <div class="customer-details">
+                                                B#: <input type="text" value="${customer.bnumber}" 
+                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bnumber', this.value)"
+                                                          style="border: none; background: transparent; color: #4a5568; padding: 2px;">
+                                                | BOL: <input type="text" value="${customer.bol}" 
+                                                             onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bol', this.value)"
+                                                             style="border: none; background: transparent; color: #4a5568; padding: 2px;">
+                                            </div>
+                                            <div class="customer-details">
+                                                Email: <input type="email" value="${customer.email || ''}" 
+                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'email', this.value)"
+                                                              style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
+                                                              placeholder="Enter email address">
+                                            </div>
+                                        </div>
+                                        <div class="eta-badge">ETA: ${formatDate(customer.eta)}</div>
+                                        <div class="port-badge">${customer.pod}</div>
+                                        <div class="inland-badge ${getInlandClass(customer.inland)}" 
+                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.bnumber}')"
+                                             style="cursor: pointer;">
+                                            Inland: ${getInlandDisplay(customer.inland)}
+                                        </div>
+                                    </div>
+                                    <div class="tasks-container">
+                                        <div class="tasks-header">
+                                            <div class="tasks-title">📋 Next Tasks (${nextTasks.length} pending)</div>
+                                            <button class="show-all-btn" onclick="toggleTasksView(this.closest('.customer-card'), '${customerId}')">📋 Show All Tasks</button>
+                                        </div>
+                                        <div class="tasks-grid" id="tasks-${customerId}">
+                                            <!-- Tasks will be rendered here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                
+                container.appendChild(vesselCard);
+                
+                // Render tasks for each customer
+                sortedCustomers.forEach(customer => {
+                    const customerId = `${vessel.vessel}|${customer.bnumber}`;
+                    const tasksContainer = document.getElementById(`tasks-${customerId}`);
+                    renderCustomerTasks(tasksContainer, customerId, false);
+                });
+            });
+            
+            // Populate filters
+            populateFilters();
+        }
+
+        function updateCustomerField(vessel, bnumber, field, value) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData[field] = value;
+                    // Note: In real implementation, this would also update Google Sheets
+                    console.log(`Updated ${field} for ${bnumber} to ${value}`);
+                }
+            }
+        }
+
+        function toggleInlandStatus(vessel, bnumber) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData.inland = cycleInlandStatus(customerData.inland);
+                    renderDashboard();
+                    updateStats();
+                }
+            }
+        }
+
+        function getInlandClass(inlandStatus) {
+            switch (inlandStatus) {
+                case 'Y':
+                    return 'inland-yes';
+                case 'N':
+                    return 'inland-no';
+                case 'UNKNOWN':
+                default:
+                    return 'inland-unknown';
+            }
+        }
+
+        function getInlandDisplay(inlandStatus) {
+            switch (inlandStatus) {
+                case 'Y':
+                    return 'Yes';
+                case 'N':
+                    return 'No';
+                case 'UNKNOWN':
+                default:
+                    return 'Unknown';
+            }
+        }
+
+        function toggleVessel(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.collapse-icon');
+            
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                header.classList.remove('collapsed');
+                icon.textContent = '▼';
+            } else {
+                content.classList.add('collapsed');
+                header.classList.add('collapsed');
+                icon.textContent = '▶';
+            }
+        }
+
+        function populateFilters() {
+            const vesselFilter = document.getElementById('vesselFilter');
+            const portFilter = document.getElementById('portFilter');
+            
+            // Store current values
+            const currentVessel = vesselFilter.value;
+            const currentPort = portFilter.value;
+            
+            // Clear existing options (except "All")
+            vesselFilter.innerHTML = '<option value="">All Vessels</option>';
+            portFilter.innerHTML = '<option value="">All Ports</option>';
+            
+            // Get unique vessels and ports from original data (not filtered)
+            const vessels = [...new Set(vesselsData.map(v => v.vessel))];
+            const ports = [...new Set(vesselsData.flatMap(v => v.customers.map(c => c.pod)))];
+            
+            vessels.forEach(vessel => {
+                const option = document.createElement('option');
+                option.value = vessel;
+                option.textContent = vessel;
+                if (vessel === currentVessel) option.selected = true;
+                vesselFilter.appendChild(option);
+            });
+            
+            ports.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                if (port === currentPort) option.selected = true;
+                portFilter.appendChild(option);
+            });
+        }
+
+        function updateStats() {
+            // Sort vessels by ETS (oldest first)
+            const sortedVessels = [...vesselsData].sort((a, b) => new Date(a.ets) - new Date(b.ets));
+            
+            // Apply filters to get current displayed data
+            const filteredVessels = applyFilters(sortedVessels);
+            
+            const totalVessels = filteredVessels.length;
+            const totalCustomers = filteredVessels.reduce((sum, vessel) => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                return sum + customersToCount.length;
+            }, 0);
+            let pendingTasks = 0;
+            let completedTasks = 0;
+            
+            filteredVessels.forEach(vessel => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                customersToCount.forEach(customer => {
+                    TASKS.forEach(task => {
+                        const status = customer.tasks[task.id];
+                        if (task.customStates) {
+                            // For custom state tasks, last state is considered completed
+                            if (status === task.customStates[task.customStates.length - 1]) {
+                                completedTasks++;
+                            } else {
+                                pendingTasks++;
+                            }
+                        } else {
+                            // For standard tasks
+                            if (status === 'completed') {
+                                completedTasks++;
+                            } else {
+                                pendingTasks++;
+                            }
+                        }
+                    });
+                });
+            });
+            
+            document.getElementById('totalVessels').textContent = totalVessels;
+            document.getElementById('totalCustomers').textContent = totalCustomers;
+            document.getElementById('pendingTasks').textContent = pendingTasks;
+            document.getElementById('completedTasks').textContent = completedTasks;
+        }
+
+        function refreshData() {
+            const dataSourceElement = document.getElementById('dataSource');
+            
+            // Check if Google Sheets is configured
+            if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
+                console.log('Using sample data - Google Sheets not configured yet');
+                dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
+                renderDashboard();
+                updateStats();
+                return;
+            }
+
+            // Load from Google Sheets
+            dataSourceElement.textContent = '🔄 Loading from Google Sheets...';
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.innerHTML = '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; color: white; font-size: 1.5rem;">🔄 Loading data from Google Sheets...</div>';
+            document.body.appendChild(loadingOverlay);
+            
+            fetchGoogleSheetsData()
+                .then(sheetsData => {
+                    if (sheetsData && sheetsData.length > 0) {
+                        vesselsData = sheetsData;
+                        dataSourceElement.textContent = `✅ Connected to Google Sheets - ${sheetsData.length} vessel(s) loaded`;
+                        renderDashboard();
+                        updateStats();
+                        console.log('Data successfully loaded from Google Sheets:', sheetsData.length, 'vessels');
+                    } else {
+                        console.log('No data received from Google Sheets, using sample data');
+                        dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Sample Data';
+                        renderDashboard();
+                        updateStats();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing data:', error);
+                    dataSourceElement.textContent = '❌ Google Sheets Error - Using Sample Data';
+                    alert('Error loading data from Google Sheets. Using sample data. Please check your configuration.');
+                    renderDashboard();
+                    updateStats();
+                })
+                .finally(() => {
+                    document.body.removeChild(loadingOverlay);
+                });
+        }
+
+        function exportData() {
+            // In real implementation, this would export to Excel/CSV
+            console.log('Exporting dashboard data...');
+            alert('Export functionality would be implemented here');
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            // Update data source indicator on load
+            const dataSourceElement = document.getElementById('dataSource');
+            if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
+                dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
+            } else {
+                dataSourceElement.textContent = '📊 Google Sheets Configured - Click Refresh to Load';
+            }
+            
+            renderDashboard();
+            updateStats();
+        });
+    </script>
+</body>
+</html>
