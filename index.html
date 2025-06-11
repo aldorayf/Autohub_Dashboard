@@ -580,6 +580,11 @@
 
     <script>
         // Google Sheets API configuration
+        // IMPORTANT: Your API key must have the following permissions:
+        // - Google Sheets API read access
+        // - Google Sheets API write access (for saving updates)
+        // To set up: Go to Google Cloud Console > APIs & Services > Credentials
+        // Create an API key and enable Google Sheets API with read/write permissions
         const GOOGLE_SHEETS_CONFIG = {
             apiKey: 'AIzaSyD-eOYi5qRVCP9gVcLNTM9BD2ovHN0NfhY', // Replace with your actual API key
             spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54', // Replace with your actual spreadsheet ID
@@ -810,6 +815,140 @@
             return 'incomplete';
         }
 
+        // Function to update task status back to Google Sheets
+        async function updateTaskInGoogleSheets(customerName, blNo, taskId, newStatus) {
+            if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || 
+                GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
+                console.log('Google Sheets not configured, skipping update');
+                return;
+            }
+
+            try {
+                // First, get the current Task_Status sheet data to find the correct row
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/values/Task_Status!A:V?key=${GOOGLE_SHEETS_CONFIG.apiKey}`
+                );
+                const data = await response.json();
+                
+                if (!data.values || data.values.length <= 1) {
+                    console.error('No task status data found');
+                    return;
+                }
+
+                const headers = data.values[0];
+                const rows = data.values.slice(1);
+                
+                // Find the row that matches customer name and BL number
+                const rowIndex = rows.findIndex(row => 
+                    row[0] === customerName && row[1] === blNo // Assuming Customer is column A, BL_No is column B
+                );
+                
+                if (rowIndex === -1) {
+                    console.error(`Row not found for customer: ${customerName}, BL: ${blNo}`);
+                    return;
+                }
+
+                // Find the column for this task
+                const taskFieldName = getTaskFieldName(taskId);
+                const columnName = `task_${taskId}_${taskFieldName}`;
+                const columnIndex = headers.findIndex(header => 
+                    header.toLowerCase().includes(taskFieldName) || header.includes(`task_${taskId}`)
+                );
+                
+                if (columnIndex === -1) {
+                    console.error(`Column not found for task ${taskId}`);
+                    return;
+                }
+
+                // Convert to A1 notation
+                const actualRowNumber = rowIndex + 2; // +1 for header, +1 for 0-based index
+                const columnLetter = String.fromCharCode(65 + columnIndex); // A=65
+                const range = `Task_Status!${columnLetter}${actualRowNumber}`;
+
+                // Update the cell
+                const updateResponse = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/values/${range}?valueInputOption=RAW&key=${GOOGLE_SHEETS_CONFIG.apiKey}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            values: [[newStatus]]
+                        })
+                    }
+                );
+
+                if (updateResponse.ok) {
+                    console.log(`Successfully updated Google Sheets: ${customerName} - Task ${taskId} to ${newStatus}`);
+                } else {
+                    console.error('Failed to update Google Sheets:', await updateResponse.text());
+                }
+                
+            } catch (error) {
+                console.error('Error updating Google Sheets:', error);
+            }
+        }
+
+        // Function to update customer field in Google Sheets
+        async function updateCustomerFieldInGoogleSheets(customerName, blNo, fieldName, newValue) {
+            if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || 
+                GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
+                return;
+            }
+
+            try {
+                let sheetName, searchColumn;
+                
+                // Determine which sheet and column to update based on field
+                if (fieldName === 'notes' || fieldName === 'email') {
+                    sheetName = 'Customer_Details';
+                    searchColumn = 0; // Customer column
+                } else {
+                    sheetName = 'Manifest_Data';
+                    searchColumn = 0; // Customer column - adjust based on your sheet structure
+                }
+
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/values/${sheetName}!A:Z?key=${GOOGLE_SHEETS_CONFIG.apiKey}`
+                );
+                const data = await response.json();
+                
+                if (!data.values || data.values.length <= 1) return;
+
+                const headers = data.values[0];
+                const rows = data.values.slice(1);
+                
+                // Find the row and column
+                const rowIndex = rows.findIndex(row => row[searchColumn] === customerName);
+                if (rowIndex === -1) return;
+
+                let columnIndex = -1;
+                if (fieldName === 'email') columnIndex = headers.findIndex(h => h.toLowerCase().includes('email'));
+                if (fieldName === 'notes') columnIndex = headers.findIndex(h => h.toLowerCase().includes('notes'));
+                
+                if (columnIndex === -1) return;
+
+                const actualRowNumber = rowIndex + 2;
+                const columnLetter = String.fromCharCode(65 + columnIndex);
+                const range = `${sheetName}!${columnLetter}${actualRowNumber}`;
+
+                await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_CONFIG.spreadsheetId}/values/${range}?valueInputOption=RAW&key=${GOOGLE_SHEETS_CONFIG.apiKey}`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: [[newValue]] })
+                    }
+                );
+
+                console.log(`Updated ${fieldName} for ${customerName} in Google Sheets`);
+                
+            } catch (error) {
+                console.error('Error updating customer field in Google Sheets:', error);
+            }
+        }
+
         // Fetch data from Google Sheets
         async function fetchGoogleSheetsData() {
             try {
@@ -847,18 +986,6 @@
                 });
                 return obj;
             });
-        }
-
-        // Function to update task status back to Google Sheets
-        async function updateTaskInGoogleSheets(customer, blNo, taskId, newStatus) {
-            // This would implement the write-back functionality
-            // For now, we'll just log the change
-            console.log(`Would update Google Sheets: ${customer} - Task ${taskId} to ${newStatus}`);
-            
-            // In production, you would:
-            // 1. Find the correct row in Task_Status sheet
-            // 2. Update the specific task column  
-            // 3. Use Google Sheets API to write the change
         }
 
         // Sample data (this would come from Google Sheets)
@@ -951,10 +1078,8 @@
                         customerData.taskDates[taskId] = new Date().toISOString().split('T')[0];
                     }
                     
-                    // Update Google Sheets if configured
-                    if (GOOGLE_SHEETS_CONFIG.apiKey !== 'YOUR_API_KEY_HERE') {
-                        updateTaskInGoogleSheets(customerData.name, customerData.bol, taskId, newStatus);
-                    }
+                    // Update Google Sheets immediately
+                    updateTaskInGoogleSheets(customerData.name, customerData.bol, taskId, newStatus);
                     
                     // Only update the specific customer's tasks instead of full re-render
                     const customerId = `${vessel}|${customer}`;
@@ -972,7 +1097,7 @@
                     }
                     
                     // Update stats only (no full re-render)
-                    updateStats();
+                    updateStatsOnly();
                 }
             }
         }
@@ -1364,11 +1489,54 @@
                 const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
                 if (customerData) {
                     customerData[field] = value;
-                    // Note: In real implementation, this would also update Google Sheets
+                    
+                    // Update Google Sheets immediately for notes and email
+                    if (field === 'notes' || field === 'email') {
+                        updateCustomerFieldInGoogleSheets(customerData.name, customerData.bol, field, value);
+                    }
+                    
                     console.log(`Updated ${field} for ${bnumber} to ${value}`);
                     // No need to re-render dashboard for field updates
                 }
             }
+        }
+
+        function updateStatsOnly() {
+            // Apply filters to get current displayed data
+            const filteredVessels = applyFilters(vesselsData);
+            
+            const totalVessels = filteredVessels.length;
+            const totalCustomers = filteredVessels.reduce((sum, vessel) => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                return sum + customersToCount.length;
+            }, 0);
+            const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
+            let pendingTasks = 0;
+            
+            filteredVessels.forEach(vessel => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                customersToCount.forEach(customer => {
+                    TASKS.forEach(task => {
+                        const status = customer.tasks[task.id];
+                        if (task.customStates) {
+                            // For custom state tasks, first state is considered incomplete
+                            if (status === task.customStates[0]) {
+                                pendingTasks++;
+                            }
+                        } else {
+                            // For standard tasks
+                            if (status === 'incomplete' || status === 'in-progress') {
+                                pendingTasks++;
+                            }
+                        }
+                    });
+                });
+            });
+            
+            document.getElementById('totalVessels').textContent = totalVessels;
+            document.getElementById('totalCustomers').textContent = totalCustomers;
+            document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
+            document.getElementById('pendingTasks').textContent = pendingTasks;
         }
 
         function toggleInlandStatus(vessel, bnumber) {
@@ -1377,6 +1545,9 @@
                 const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
+                    
+                    // Update Google Sheets
+                    updateCustomerFieldInGoogleSheets(customerData.name, customerData.bol, 'inland', customerData.inland);
                     
                     // Update just the inland badge instead of full re-render
                     const customerCards = document.querySelectorAll('.customer-card');
@@ -1391,7 +1562,7 @@
                         }
                     });
                     
-                    updateStats();
+                    updateStatsOnly();
                 }
             }
         }
@@ -1518,7 +1689,43 @@
         // Separate function for applying filters and rendering (used by Refresh Data button)
         function applyFiltersAndRender() {
             renderDashboard();
-            updateStats();
+            updateStatsOnly();
+        }
+
+        // Auto-load data from Google Sheets on page load
+        async function autoLoadData() {
+            const dataSourceElement = document.getElementById('dataSource');
+            
+            // Check if Google Sheets is configured
+            if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
+                console.log('Google Sheets not configured, using sample data');
+                dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
+                return false;
+            }
+
+            // Load from Google Sheets automatically
+            dataSourceElement.textContent = '🔄 Loading from Google Sheets...';
+            
+            try {
+                const sheetsData = await fetchGoogleSheetsData();
+                if (sheetsData && sheetsData.length > 0) {
+                    // Replace sample data with Google Sheets data
+                    vesselsData = sheetsData;
+                    originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
+                    
+                    dataSourceElement.textContent = `✅ Loaded from Google Sheets - ${sheetsData.length} vessel(s) - Auto-syncing enabled`;
+                    console.log('Data auto-loaded from Google Sheets:', sheetsData.length, 'vessels');
+                    return true;
+                } else {
+                    console.log('No data received from Google Sheets');
+                    dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Sample Data';
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error auto-loading data:', error);
+                dataSourceElement.textContent = '❌ Google Sheets Auto-Load Error - Using Sample Data';
+                return false;
+            }
         }
 
         // Import data function (used by Import Data button)
@@ -1534,22 +1741,22 @@
             }
 
             // Load from Google Sheets
-            dataSourceElement.textContent = '🔄 Importing from Google Sheets...';
+            dataSourceElement.textContent = '🔄 Importing fresh data from Google Sheets...';
             const loadingOverlay = document.createElement('div');
-            loadingOverlay.innerHTML = '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; color: white; font-size: 1.5rem;">🔄 Importing data from Google Sheets...</div>';
+            loadingOverlay.innerHTML = '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; color: white; font-size: 1.5rem;">🔄 Importing fresh data from Google Sheets...</div>';
             document.body.appendChild(loadingOverlay);
             
             try {
                 const sheetsData = await fetchGoogleSheetsData();
                 if (sheetsData && sheetsData.length > 0) {
-                    // Merge with existing data to preserve task progress
+                    // Merge with existing data to preserve task progress and updates
                     vesselsData = mergeVesselData(sheetsData, vesselsData);
                     originalVesselsData = JSON.parse(JSON.stringify(vesselsData)); // Update original data
                     
-                    dataSourceElement.textContent = `✅ Imported from Google Sheets - ${sheetsData.length} vessel(s) loaded`;
+                    dataSourceElement.textContent = `✅ Fresh data imported from Google Sheets - ${sheetsData.length} vessel(s) - Auto-syncing enabled`;
                     renderDashboard();
-                    updateStats();
-                    console.log('Data successfully imported from Google Sheets:', sheetsData.length, 'vessels');
+                    updateStatsOnly();
+                    console.log('Fresh data successfully imported from Google Sheets:', sheetsData.length, 'vessels');
                 } else {
                     console.log('No data received from Google Sheets');
                     dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Current Data';
@@ -1570,20 +1777,25 @@
         }
 
         // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize with sample data
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize with sample data first
             initializeSampleData();
             
-            // Update data source indicator on load
+            // Try to auto-load from Google Sheets if configured
+            const loadedFromSheets = await autoLoadData();
+            
+            // Update data source indicator
             const dataSourceElement = document.getElementById('dataSource');
-            if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
-                dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
-            } else {
-                dataSourceElement.textContent = '📊 Google Sheets Configured - Click Import Data to Load';
+            if (!loadedFromSheets) {
+                if (GOOGLE_SHEETS_CONFIG.apiKey === 'YOUR_API_KEY_HERE' || GOOGLE_SHEETS_CONFIG.spreadsheetId === 'YOUR_SPREADSHEET_ID_HERE') {
+                    dataSourceElement.textContent = '📊 Using Sample Data - Configure Google Sheets API';
+                } else {
+                    dataSourceElement.textContent = '📊 Google Sheets Configured - Data syncing enabled';
+                }
             }
             
             renderDashboard();
-            updateStats();
+            updateStatsOnly();
         });
     </script>
 </body>
