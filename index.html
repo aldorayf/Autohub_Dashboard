@@ -732,51 +732,41 @@
             return result;
         }
 
-        // Enhanced save function with better error handling
-        async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
-            if (GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE') {
-                console.log('⚠️ Google Apps Script not configured');
-                return false;
-            }
+       // --- REPLACE ONLY THIS FUNCTION -----------------------------------
+async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
+    try {
+        const params = new URLSearchParams({
+            action: 'updateTask',
+            customerName,
+            blNo,
+            taskId,
+            newStatus
+        });
 
-            try {
-                console.log(`💾 Saving: ${customerName} - Task ${taskId} - ${newStatus}`);
-                
-                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
-                    method: 'POST',
-                    mode: 'cors',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'updateTask',
-                        customerName: customerName,
-                        blNo: blNo,
-                        taskId: taskId,
-                        newStatus: newStatus
-                    })
-                });
+        const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+            method: 'POST',
+            // 👇 this content-type is a CORS “simple request” → no pre-flight
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params                  // key=value&key2=value2…
+        });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log(`✅ Successfully saved task ${taskId} for ${customerName}: ${newStatus}`);
-                    return true;
-                } else {
-                    console.error('❌ Failed to save task:', result.error);
-                    alert(`Failed to save task: ${result.error}`);
-                    return false;
-                }
-                
-            } catch (error) {
-                console.error('❌ Error saving task:', error);
-                alert(`Error saving task: ${error.message}`);
-                return false;
-            }
+        // Apps Script will still send JSON back; parse it
+        const result = await response.json();
+        if (result.success) {
+            console.log(`✅ Saved task ${taskId} for ${customerName}`);
+            return true;
+        } else {
+            console.error('❌ Save failed:', result.error);
+            alert(`Save failed: ${result.error}`);
+            return false;
         }
+    } catch (err) {
+        console.error('❌ Fetch error:', err);
+        alert(`Error saving task: ${err.message}`);
+        return false;
+    }
+}
+// -------------------------------------------------------------------
 
         // Load data from Google Apps Script
         async function loadFromGoogleAppsScript() {
