@@ -1381,7 +1381,7 @@
             });
         }
 
-        function updateETA(vessel, customerName, newETA) {
+        async function updateETA(vessel, customerName, newETA) {
             try {
                 const vesselData = vesselsData.find(v => v.vessel === vessel);
                 if (vesselData) {
@@ -1392,7 +1392,7 @@
                         console.log(`✅ Updated ETA for ${customerName} from ${oldETA} to ${newETA}`);
                         
                         // Save to Google Sheets
-                        saveETAToGoogleAppsScript(customerName, newETA);
+                        await saveETAToGoogleAppsScript(customerName, newETA);
                         
                         setTimeout(() => {
                             renderDashboard();
@@ -1405,7 +1405,7 @@
             }
         }
 
-        function makeETAEditable(element, vessel, customerName, currentETA) {
+        async function makeETAEditable(element, vessel, customerName, currentETA) {
             event.stopPropagation();
             
             const originalContent = element.innerHTML;
@@ -1427,10 +1427,10 @@
                     border-radius: 4px;
                 `;
                 
-                const saveAndRestore = () => {
+                const saveAndRestore = async () => {
                     try {
                         if (input.value && input.value !== currentETA) {
-                            updateETA(vessel, customerName, input.value);
+                            await updateETA(vessel, customerName, input.value);
                         } else {
                             element.innerHTML = originalContent;
                         }
