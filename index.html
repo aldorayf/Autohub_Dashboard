@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+debugInfo += '\n🔗 FIELD MAPPING:\n';
+                debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
+                debugInfo += '  - Task_Status "BL_No" → Matches House No. for task updates\n\n';<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -685,24 +687,22 @@
                 // Find customer details
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
-                // FIXED: Specific BOL field mapping based on actual sheet structure
-                // Manifest_Data sheet uses "BL No." - Task_Status sheet uses "BL_No"
+                // FIXED: Correct BOL field mapping
+                // Manifest_Data sheet: "House No." → Dashboard BOL field
+                // Task_Status sheet: "BL_No" → for matching tasks
                 let blNumber = '';
                 
-                // Try exact field names from your sheets
-                if (row['BL No.']) {
-                    blNumber = row['BL No.'];
-                    console.log(`✅ Found BL in 'BL No.' field: ${blNumber}`);
-                } else if (row['House No.']) {
+                // PRIMARY: Look for "House No." field in Manifest_Data
+                if (row['House No.']) {
                     blNumber = row['House No.'];
-                    console.log(`✅ Found BL in 'House No.' field: ${blNumber}`);
+                    console.log(`✅ Found BOL from 'House No.' field: ${blNumber}`);
                 } else {
                     // Fallback to other possible field names
-                    const possibleBLFields = ['BL_No', 'BL No', 'BOL', 'bol', 'House No.'];
+                    const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
                     for (const field of possibleBLFields) {
                         if (row[field]) {
                             blNumber = row[field];
-                            console.log(`✅ Found BL in '${field}' field: ${blNumber}`);
+                            console.log(`✅ Found BOL in '${field}' field: ${blNumber}`);
                             break;
                         }
                     }
@@ -712,7 +712,7 @@
                     console.warn(`⚠️ No BL number found for customer: ${row.Customer}`);
                 }
                 
-                // FIXED: Enhanced task status matching - match by Customer + BL_No
+                // FIXED: Task status matching - Manifest "House No." matches Task_Status "BL_No"
                 const taskData = taskStatus.find(t => {
                     // Customer name matching
                     const customerMatch = t.Customer === row.Customer || 
@@ -720,15 +720,16 @@
                     
                     if (!customerMatch) return false;
                     
-                    // BL number matching - Task_Status sheet uses "BL_No"
+                    // BOL matching: Manifest "House No." should match Task_Status "BL_No"
                     if (blNumber && t['BL_No']) {
                         const match = String(t['BL_No']).trim() === String(blNumber).trim();
                         if (match) {
-                            console.log(`✅ Task data matched for ${row.Customer}, BL: ${blNumber}`);
+                            console.log(`✅ Task data matched for ${row.Customer}, House No./BL_No: ${blNumber}`);
                         }
                         return match;
                     }
                     
+                    // If no BOL number, still return false to ensure proper matching
                     return false;
                 }) || {};
                 
@@ -1508,17 +1509,21 @@
             try {
                 let debugInfo = '🔍 DEBUG: Google Sheets Field Names\n\n';
                 
+                debugInfo += '🔗 FIELD MAPPING:\n';
+                debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
+                debugInfo += '  - Task_Status "BL_No" → Matches House No. for task updates\n\n';
+                
                 if (rawGoogleSheetsData.manifestData && rawGoogleSheetsData.manifestData.length > 0) {
                     debugInfo += '📊 MANIFEST_DATA Fields:\n';
                     Object.keys(rawGoogleSheetsData.manifestData[0]).forEach(field => {
                         debugInfo += `  - "${field}"\n`;
                     });
                     
-                    // Show sample BOL data
+                    // Show sample BOL data - focusing on House No.
                     const sampleRow = rawGoogleSheetsData.manifestData[0];
-                    debugInfo += '\n📊 Sample Manifest Row:\n';
-                    if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}"\n`;
-                    if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}"\n`;
+                    debugInfo += '\n📊 Sample Manifest Row (BOL Mapping):\n';
+                    if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}" ← THIS goes to Dashboard BOL field\n`;
+                    if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}" (different field)\n`;
                     debugInfo += `  - Customer: "${sampleRow.Customer}"\n`;
                 }
                 
@@ -1528,10 +1533,10 @@
                         debugInfo += `  - "${field}"\n`;
                     });
                     
-                    // Show sample task data
+                    // Show sample task data - focusing on BL_No matching
                     const sampleTaskRow = rawGoogleSheetsData.taskData[0];
-                    debugInfo += '\n📋 Sample Task Row:\n';
-                    if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}"\n`;
+                    debugInfo += '\n📋 Sample Task Row (Matching):\n';
+                    if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}" ← Should match House No. from Manifest\n`;
                     debugInfo += `  - Customer: "${sampleTaskRow.Customer}"\n`;
                     if (sampleTaskRow.isf_transmit) debugInfo += `  - isf_transmit: "${sampleTaskRow.isf_transmit}"\n`;
                 }
