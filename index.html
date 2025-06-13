@@ -555,7 +555,7 @@
             </div>
             <div>
                 <button class="btn" onclick="refreshFilters()" title="Apply current filter settings">🔄 Refresh Filters</button>
-                <button class="btn btn-import" onclick="importData()" title="Import new data from Google Sheets">📥 Import Data</button>
+                <button class="btn btn-import" onclick="importData()" title="Import fresh data from Google Sheets">📥 Import Fresh Data</button>
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
             </div>
         </div>
@@ -622,7 +622,7 @@
         let vesselsData = [];
         let vesselCollapsedStates = {};
 
-        // Enhanced task field mapping - this is critical for persistence!
+        // Enhanced task field mapping
         function getTaskFieldName(taskId) {
             const fieldNames = {
                 1: 'isf_transmit',
@@ -649,7 +649,7 @@
             return fieldNames[taskId] || 'unknown';
         }
 
-        // Enhanced data transformation with better task mapping
+        // FIXED: Enhanced data transformation with better BOL mapping
         function transformManifestData(manifestData, customerDetails, taskStatus) {
             console.log('🔄 Transforming data...');
             console.log('📊 Manifest rows:', manifestData.length);
@@ -675,19 +675,41 @@
                 // Find customer details
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
-                // Find task status - IMPROVED MATCHING
-                const taskData = taskStatus.find(t => 
-                    t.Customer === row.Customer && 
-                    (t.BL_No === row['BL No.'] || t['BL No.'] === row['BL No.'])
-                ) || {};
+                // FIXED: Better BOL field mapping - try multiple field variations
+                let blNumber = '';
+                const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
+                for (const field of possibleBLFields) {
+                    if (row[field]) {
+                        blNumber = row[field];
+                        break;
+                    }
+                }
                 
-                console.log(`🔍 Customer: ${row.Customer}, Task data found:`, Object.keys(taskData).length > 0);
+                // FIXED: Enhanced task status matching with multiple field variations
+                const taskData = taskStatus.find(t => {
+                    // Try multiple customer name matching
+                    const customerMatch = t.Customer === row.Customer || 
+                                        String(t.Customer).trim().toLowerCase() === String(row.Customer).trim().toLowerCase();
+                    
+                    if (!customerMatch) return false;
+                    
+                    // Try multiple BL number field variations
+                    const possibleTaskBLFields = ['BL_No', 'BL No.', 'BL No', 'BOL', 'bol'];
+                    for (const field of possibleTaskBLFields) {
+                        if (t[field] && (t[field] === blNumber || t[field] === row['BL No.'])) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }) || {};
+                
+                console.log(`🔍 Customer: ${row.Customer}, BL: ${blNumber}, Task data found:`, Object.keys(taskData).length > 0);
                 
                 // Create customer object
                 const customer = {
                     name: row.Customer,
                     bnumber: `B${row['Ref No.']}`,
-                    bol: row['BL No.'],
+                    bol: blNumber, // FIXED: Use the found BL number
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
                     pod: row.Port,
@@ -697,31 +719,27 @@
                     taskDates: {}
                 };
                 
-                // Initialize tasks with ENHANCED FIELD MAPPING
+                // FIXED: Initialize tasks with current status from Google Sheets
                 for (let i = 1; i <= 20; i++) {
                     const taskFieldName = getTaskFieldName(i);
                     
-                    // Try multiple field name patterns
+                    // Try to find the task value in the taskData
                     let taskValue = null;
-                    const possibleFieldNames = [
-                        `task_${i}_${taskFieldName}`,  // task_1_isf_transmit
-                        `Task_${i}_${taskFieldName}`,  // Task_1_isf_transmit
-                        taskFieldName,                 // isf_transmit
-                        `task_${i}`,                   // task_1
-                        `Task ${i}`,                   // Task 1
-                        `task${i}`                     // task1
-                    ];
                     
-                    for (const fieldName of possibleFieldNames) {
-                        if (taskData[fieldName] !== undefined && taskData[fieldName] !== '') {
-                            taskValue = taskData[fieldName];
-                            console.log(`✅ Found task ${i} value: ${taskValue} in field: ${fieldName}`);
-                            break;
-                        }
+                    // Direct field name match (most likely)
+                    if (taskData[taskFieldName] !== undefined && taskData[taskFieldName] !== '') {
+                        taskValue = taskData[taskFieldName];
+                        console.log(`✅ Found task ${i} (${taskFieldName}): ${taskValue}`);
                     }
                     
-                    // Set task status
+                    // Set task status - use found value or default
                     customer.tasks[i] = taskValue || getDefaultTaskStatus(i);
+                    
+                    // Add task date if available
+                    const dateField = `${taskFieldName}_date`;
+                    if (taskData[dateField]) {
+                        customer.taskDates[i] = taskData[dateField];
+                    }
                 }
                 
                 vessel.customers.push(customer);
@@ -732,46 +750,43 @@
             return result;
         }
 
-       // --- REPLACE ONLY THIS FUNCTION -----------------------------------
-async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
-    try {
-        const params = new URLSearchParams({
-            action: 'updateTask',
-            customerName,
-            blNo,
-            taskId,
-            newStatus
-        });
+        // FIXED: Save task function
+        async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
+            try {
+                const params = new URLSearchParams({
+                    action: 'updateTask',
+                    customerName,
+                    blNo,
+                    taskId,
+                    newStatus
+                });
 
-        const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
-            method: 'POST',
-            // 👇 this content-type is a CORS “simple request” → no pre-flight
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: params                  // key=value&key2=value2…
-        });
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
 
-        // Apps Script will still send JSON back; parse it
-        const result = await response.json();
-        if (result.success) {
-            console.log(`✅ Saved task ${taskId} for ${customerName}`);
-            return true;
-        } else {
-            console.error('❌ Save failed:', result.error);
-            alert(`Save failed: ${result.error}`);
-            return false;
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`✅ Saved task ${taskId} for ${customerName}`);
+                    return true;
+                } else {
+                    console.error('❌ Save failed:', result.error);
+                    alert(`Save failed: ${result.error}`);
+                    return false;
+                }
+            } catch (err) {
+                console.error('❌ Fetch error:', err);
+                alert(`Error saving task: ${err.message}`);
+                return false;
+            }
         }
-    } catch (err) {
-        console.error('❌ Fetch error:', err);
-        alert(`Error saving task: ${err.message}`);
-        return false;
-    }
-}
-// -------------------------------------------------------------------
 
-        // Load data from Google Apps Script
+        // FIXED: Load data from Google Apps Script with better error handling
         async function loadFromGoogleAppsScript() {
             try {
-                console.log('🔄 Loading data from Google Apps Script...');
+                console.log('🔄 Loading ALL current data from Google Apps Script...');
                 
                 const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
                     method: 'GET',
@@ -792,7 +807,7 @@ async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus)
                 
                 if (data.manifestData && data.customerData && data.taskData) {
                     const transformedData = transformManifestData(data.manifestData, data.customerData, data.taskData);
-                    console.log('✅ Data loaded successfully:', transformedData.length, 'vessels');
+                    console.log('✅ ALL current data loaded successfully:', transformedData.length, 'vessels');
                     return transformedData;
                 } else {
                     throw new Error('Invalid data structure received');
@@ -804,16 +819,14 @@ async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus)
             }
         }
 
-        // FIXED: Separate functions for different button behaviors
-        
-        // 1. Refresh Filters - Only applies filters, no data loading
+        // Refresh Filters - Only applies filters, no data loading
         function refreshFilters() {
             console.log('🔄 Refreshing filters (no data loading)...');
             renderDashboard();
             updateStatsOnly();
         }
 
-        // 2. Import Data - Only this function loads new data
+        // FIXED: Import Data - Loads ALL current data from Google Sheets
         async function importData() {
             const dataSourceElement = document.getElementById('dataSource');
             
@@ -822,20 +835,20 @@ async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus)
                 return;
             }
 
-            dataSourceElement.textContent = '🔄 Importing fresh data from Google Sheets...';
+            dataSourceElement.textContent = '🔄 Loading ALL current data from Google Sheets...';
             
             try {
                 const sheetsData = await loadFromGoogleAppsScript();
                 if (sheetsData && sheetsData.length > 0) {
-                    // Replace all data with fresh import
+                    // COMPLETELY REPLACE all data with current Google Sheets data
                     vesselsData = sheetsData;
                     originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
                     
-                    dataSourceElement.textContent = `✅ Fresh data imported - ${sheetsData.length} vessel(s) | Task states preserved`;
+                    dataSourceElement.textContent = `✅ ALL current data loaded - ${sheetsData.length} vessel(s) | All task statuses current`;
                     
                     renderDashboard();
                     updateStatsOnly();
-                    console.log('✅ Fresh data imported successfully');
+                    console.log('✅ ALL current data loaded successfully');
                 } else {
                     dataSourceElement.textContent = '⚠️ No data received from Google Sheets';
                 }
@@ -1382,7 +1395,7 @@ async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus)
                                                 B#: <input type="text" value="${customer.bnumber}" 
                                                           onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bnumber', this.value)"
                                                           style="border: none; background: transparent; color: #4a5568; padding: 2px;">
-                                                | BOL: <input type="text" value="${customer.bol}" 
+                                                | BOL: <input type="text" value="${customer.bol || ''}" 
                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bol', this.value)"
                                                              style="border: none; background: transparent; color: #4a5568; padding: 2px;">
                                             </div>
@@ -1452,57 +1465,31 @@ async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus)
             alert('Export functionality would be implemented here');
         }
 
-        function initializeSampleData() {
-            originalVesselsData = [
-                {
-                    vessel: "BRILLIANT ACE 0119A",
-                    voyage: "0119A",
-                    ets: "2025-06-12",
-                    customers: [
-                        {
-                            name: "PELLEGRINO",
-                            bnumber: "B2501_",
-                            bol: "MOLU18007433610",
-                            email: "pellegrino@example.com",
-                            notes: "Customer prefers afternoon pickup",
-                            pod: "JACKSONVILLE",
-                            eta: "2025-07-13",
-                            inland: "UNKNOWN",
-                            tasks: {
-                                1: "completed", 2: "completed", 3: "in-progress", 4: "incomplete",
-                                5: "incomplete", 6: "NOT RECEIVED", 7: "incomplete", 8: "incomplete",
-                                9: "incomplete", 10: "UNPAID", 11: "incomplete", 12: "incomplete",
-                                13: "incomplete", 14: "incomplete", 15: "incomplete", 16: "incomplete",
-                                17: "incomplete", 18: "incomplete", 19: "incomplete", 20: "incomplete"
-                            },
-                            taskDates: {
-                                1: "2025-06-01", 2: "2025-06-02", 3: "2025-06-08"
-                            }
-                        }
-                    ]
-                }
-            ];
-            vesselsData = JSON.parse(JSON.stringify(originalVesselsData));
-        }
-
-        // Initialize dashboard
+        // REMOVED: Sample data initialization - always load from Google Sheets
+        
+        // FIXED: Initialize dashboard - Always try to load current data from Google Sheets first
         document.addEventListener('DOMContentLoaded', async () => {
-            initializeSampleData();
-            
             const dataSourceElement = document.getElementById('dataSource');
             
+            // Always try to load current data from Google Sheets on page load
             try {
+                dataSourceElement.textContent = '🔄 Loading current data from Google Sheets...';
+                
                 const sheetsData = await loadFromGoogleAppsScript();
                 if (sheetsData && sheetsData.length > 0) {
                     vesselsData = sheetsData;
                     originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
-                    dataSourceElement.textContent = `✅ Multi-user sync enabled - ${sheetsData.length} vessel(s) loaded | Task states preserved`;
+                    dataSourceElement.textContent = `✅ Current data loaded - ${sheetsData.length} vessel(s) | All task statuses current`;
+                    console.log('✅ Dashboard initialized with current Google Sheets data');
                 } else {
-                    dataSourceElement.textContent = '⚠️ No data in Google Sheets - Using Sample Data';
+                    dataSourceElement.textContent = '⚠️ No data found in Google Sheets';
                 }
             } catch (error) {
                 console.error('Auto-load error:', error);
-                dataSourceElement.textContent = '❌ Google Apps Script Error - Using Sample Data';
+                dataSourceElement.textContent = '❌ Cannot connect to Google Sheets - Check configuration';
+                // Initialize with empty data instead of sample data
+                vesselsData = [];
+                originalVesselsData = [];
             }
             
             renderDashboard();
