@@ -685,11 +685,7 @@
                     return `${task.description}\nVessel must have arrived prior to requesting`;
                 
                 case 15: // Release Notification
-                    if (customerData.inland === 'Y') {
-                        return "Release Notification to Transcar\nNotify Transcar of Cargo Release";
-                    } else {
-                        return "Release Notification to Customer\nNotify customer of cargo Release";
-                    }
+                    return "Release Notification to Customer or Transcar\nRelease Notification to Customer if no INLAND\nRelease Notification to Transcar if INLAND";
                 
                 default:
                     return task.description;
