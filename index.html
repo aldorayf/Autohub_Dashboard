@@ -585,6 +585,7 @@
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
                 <button class="btn btn-secondary" onclick="debugFieldNames()" title="Show field names from Google Sheets">🔍 Debug Fields</button>
                 <button class="btn btn-secondary" onclick="attemptDateCorrection()" title="Fix dates that show MM/DD instead of DD/MM">📅 Fix Dates</button>
+                <button class="btn btn-secondary" onclick="testDateParsing()" title="Test date parsing with sample dates">🧪 Test Dates</button>
             </div>
         </div>
     </div>
@@ -1043,58 +1044,60 @@
             }
         }
 
-        // FIXED: Date parsing function that preserves exact dates without timezone shifts
+        // COMPLETELY REWRITTEN: Date parsing that explicitly handles DD/MM/YYYY format
         function parseManifestDate(dateValue) {
             if (!dateValue) return null;
             
-            console.log(`📅 Raw date input: ${dateValue} (type: ${typeof dateValue})`);
+            console.log(`📅 Raw date input: "${dateValue}" (type: ${typeof dateValue})`);
             
-            // If it's already a Date object, extract the date parts without timezone conversion
+            // FIRST: Handle DD/MM/YYYY string format (most common from Google Sheets)
+            if (typeof dateValue === 'string' && dateValue.includes('/')) {
+                const parts = dateValue.split('/');
+                if (parts.length === 3) {
+                    // EXPLICIT: Assume DD/MM/YYYY format from Google Sheets
+                    const day = parseInt(parts[0]);
+                    const month = parseInt(parts[1]);
+                    const year = parseInt(parts[2]);
+                    
+                    // Validate the date components
+                    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020) {
+                        const convertedDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                        console.log(`📅 DD/MM/YYYY conversion: "${dateValue}" → "${convertedDate}"`);
+                        
+                        // Verify this makes sense
+                        const testDate = new Date(year, month - 1, day); // month is 0-indexed
+                        console.log(`📅 Verification: ${convertedDate} should display as ${testDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`);
+                        
+                        return convertedDate;
+                    }
+                }
+            }
+            
+            // SECOND: Handle Date objects (extract components without timezone issues)
             if (dateValue instanceof Date) {
-                // Use getFullYear, getMonth, getDate to avoid timezone issues
                 const year = dateValue.getFullYear();
                 const month = (dateValue.getMonth() + 1).toString().padStart(2, '0');
                 const day = dateValue.getDate().toString().padStart(2, '0');
                 const convertedDate = `${year}-${month}-${day}`;
-                console.log(`📅 Date object conversion: ${dateValue} → ${convertedDate} (preserved exact date)`);
+                console.log(`📅 Date object conversion: ${dateValue} → ${convertedDate}`);
                 return convertedDate;
             }
             
-            // If it's an ISO string, parse it carefully to avoid timezone shifts
+            // THIRD: Handle ISO strings (just take the date part)
             if (typeof dateValue === 'string' && dateValue.includes('T')) {
                 const datePart = dateValue.split('T')[0];
-                console.log(`📅 ISO string conversion: ${dateValue} → ${datePart} (preserved exact date)`);
+                console.log(`📅 ISO string conversion: ${dateValue} → ${datePart}`);
                 return datePart;
             }
             
-            // Handle raw DD/MM/YYYY format string
-            if (typeof dateValue === 'string' && dateValue.includes('/')) {
-                const parts = dateValue.split('/');
-                if (parts.length === 3) {
-                    const day = parts[0].padStart(2, '0');
-                    const month = parts[1].padStart(2, '0');
-                    const year = parts[2];
-                    
-                    // Convert DD/MM/YYYY to YYYY-MM-DD
-                    const convertedDate = `${year}-${month}-${day}`;
-                    console.log(`📅 DD/MM/YYYY conversion: ${dateValue} → ${convertedDate} (preserved exact date)`);
-                    return convertedDate;
-                }
+            // FOURTH: Handle YYYY-MM-DD strings (already in correct format)
+            if (typeof dateValue === 'string' && dateValue.includes('-') && dateValue.length === 10) {
+                console.log(`📅 Already in YYYY-MM-DD format: ${dateValue}`);
+                return dateValue;
             }
             
-            // Handle numeric date values (Excel serial dates)
-            if (typeof dateValue === 'number') {
-                // Convert Excel serial date to JavaScript Date
-                const excelEpoch = new Date(1900, 0, 1);
-                const jsDate = new Date(excelEpoch.getTime() + (dateValue - 2) * 24 * 60 * 60 * 1000);
-                const year = jsDate.getFullYear();
-                const month = (jsDate.getMonth() + 1).toString().padStart(2, '0');
-                const day = jsDate.getDate().toString().padStart(2, '0');
-                const convertedDate = `${year}-${month}-${day}`;
-                console.log(`📅 Excel serial date conversion: ${dateValue} → ${convertedDate} (preserved exact date)`);
-                return convertedDate;
-            }
-            
+            // FALLBACK: Try to parse as-is
+            console.log(`📅 Fallback parsing for: ${dateValue}`);
             return dateValue;
         }
 
