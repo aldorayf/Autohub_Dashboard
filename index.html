@@ -557,6 +557,7 @@
                 <button class="btn" onclick="refreshFilters()" title="Apply current filter settings">🔄 Refresh Filters</button>
                 <button class="btn btn-import" onclick="importData()" title="Import fresh data from Google Sheets">📥 Import Fresh Data</button>
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
+                <button class="btn btn-secondary" onclick="debugFieldNames()" title="Show field names from Google Sheets">🔍 Debug Fields</button>
             </div>
         </div>
     </div>
@@ -621,6 +622,7 @@
         let originalVesselsData = [];
         let vesselsData = [];
         let vesselCollapsedStates = {};
+        let rawGoogleSheetsData = null; // Store raw data for debugging
 
         // Enhanced task field mapping
         function getTaskFieldName(taskId) {
@@ -649,12 +651,20 @@
             return fieldNames[taskId] || 'unknown';
         }
 
-        // FIXED: Enhanced data transformation with better BOL mapping
+        // FIXED: Enhanced data transformation with correct BOL field mapping
         function transformManifestData(manifestData, customerDetails, taskStatus) {
             console.log('🔄 Transforming data...');
             console.log('📊 Manifest rows:', manifestData.length);
             console.log('👥 Customer detail rows:', customerDetails.length);
             console.log('📋 Task status rows:', taskStatus.length);
+            
+            // Debug: Check field names in first row
+            if (manifestData.length > 0) {
+                console.log('📋 Manifest fields:', Object.keys(manifestData[0]));
+            }
+            if (taskStatus.length > 0) {
+                console.log('📋 Task Status fields:', Object.keys(taskStatus[0]));
+            }
             
             const vesselsMap = new Map();
             
@@ -675,41 +685,61 @@
                 // Find customer details
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
-                // FIXED: Better BOL field mapping - try multiple field variations
+                // FIXED: Specific BOL field mapping based on actual sheet structure
+                // Manifest_Data sheet uses "BL No." - Task_Status sheet uses "BL_No"
                 let blNumber = '';
-                const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
-                for (const field of possibleBLFields) {
-                    if (row[field]) {
-                        blNumber = row[field];
-                        break;
+                
+                // Try exact field names from your sheets
+                if (row['BL No.']) {
+                    blNumber = row['BL No.'];
+                    console.log(`✅ Found BL in 'BL No.' field: ${blNumber}`);
+                } else if (row['House No.']) {
+                    blNumber = row['House No.'];
+                    console.log(`✅ Found BL in 'House No.' field: ${blNumber}`);
+                } else {
+                    // Fallback to other possible field names
+                    const possibleBLFields = ['BL_No', 'BL No', 'BOL', 'bol', 'House No.'];
+                    for (const field of possibleBLFields) {
+                        if (row[field]) {
+                            blNumber = row[field];
+                            console.log(`✅ Found BL in '${field}' field: ${blNumber}`);
+                            break;
+                        }
                     }
                 }
                 
-                // FIXED: Enhanced task status matching with multiple field variations
+                if (!blNumber) {
+                    console.warn(`⚠️ No BL number found for customer: ${row.Customer}`);
+                }
+                
+                // FIXED: Enhanced task status matching - match by Customer + BL_No
                 const taskData = taskStatus.find(t => {
-                    // Try multiple customer name matching
+                    // Customer name matching
                     const customerMatch = t.Customer === row.Customer || 
-                                        String(t.Customer).trim().toLowerCase() === String(row.Customer).trim().toLowerCase();
+                                        String(t.Customer || '').trim().toLowerCase() === String(row.Customer || '').trim().toLowerCase();
                     
                     if (!customerMatch) return false;
                     
-                    // Try multiple BL number field variations
-                    const possibleTaskBLFields = ['BL_No', 'BL No.', 'BL No', 'BOL', 'bol'];
-                    for (const field of possibleTaskBLFields) {
-                        if (t[field] && (t[field] === blNumber || t[field] === row['BL No.'])) {
-                            return true;
+                    // BL number matching - Task_Status sheet uses "BL_No"
+                    if (blNumber && t['BL_No']) {
+                        const match = String(t['BL_No']).trim() === String(blNumber).trim();
+                        if (match) {
+                            console.log(`✅ Task data matched for ${row.Customer}, BL: ${blNumber}`);
                         }
+                        return match;
                     }
+                    
                     return false;
                 }) || {};
                 
-                console.log(`🔍 Customer: ${row.Customer}, BL: ${blNumber}, Task data found:`, Object.keys(taskData).length > 0);
+                const hasTaskData = Object.keys(taskData).length > 0;
+                console.log(`🔍 Customer: ${row.Customer}, BL: ${blNumber}, Task data found: ${hasTaskData}`);
                 
                 // Create customer object
                 const customer = {
                     name: row.Customer,
                     bnumber: `B${row['Ref No.']}`,
-                    bol: blNumber, // FIXED: Use the found BL number
+                    bol: blNumber, // FIXED: This should now have the correct BL number
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
                     pod: row.Port,
@@ -727,9 +757,9 @@
                     let taskValue = null;
                     
                     // Direct field name match (most likely)
-                    if (taskData[taskFieldName] !== undefined && taskData[taskFieldName] !== '') {
+                    if (hasTaskData && taskData[taskFieldName] !== undefined && taskData[taskFieldName] !== '') {
                         taskValue = taskData[taskFieldName];
-                        console.log(`✅ Found task ${i} (${taskFieldName}): ${taskValue}`);
+                        console.log(`✅ Found task ${i} (${taskFieldName}): ${taskValue} for ${row.Customer}`);
                     }
                     
                     // Set task status - use found value or default
@@ -737,7 +767,7 @@
                     
                     // Add task date if available
                     const dateField = `${taskFieldName}_date`;
-                    if (taskData[dateField]) {
+                    if (hasTaskData && taskData[dateField]) {
                         customer.taskDates[i] = taskData[dateField];
                     }
                 }
@@ -806,6 +836,9 @@
                 }
                 
                 if (data.manifestData && data.customerData && data.taskData) {
+                    // Store raw data for debugging
+                    rawGoogleSheetsData = data;
+                    
                     const transformedData = transformManifestData(data.manifestData, data.customerData, data.taskData);
                     console.log('✅ ALL current data loaded successfully:', transformedData.length, 'vessels');
                     return transformedData;
@@ -1463,6 +1496,62 @@
 
         function exportData() {
             alert('Export functionality would be implemented here');
+        }
+
+        // Debug function to show field names
+        async function debugFieldNames() {
+            if (!rawGoogleSheetsData) {
+                alert('No raw data available. Please click "Import Fresh Data" first.');
+                return;
+            }
+            
+            try {
+                let debugInfo = '🔍 DEBUG: Google Sheets Field Names\n\n';
+                
+                if (rawGoogleSheetsData.manifestData && rawGoogleSheetsData.manifestData.length > 0) {
+                    debugInfo += '📊 MANIFEST_DATA Fields:\n';
+                    Object.keys(rawGoogleSheetsData.manifestData[0]).forEach(field => {
+                        debugInfo += `  - "${field}"\n`;
+                    });
+                    
+                    // Show sample BOL data
+                    const sampleRow = rawGoogleSheetsData.manifestData[0];
+                    debugInfo += '\n📊 Sample Manifest Row:\n';
+                    if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}"\n`;
+                    if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}"\n`;
+                    debugInfo += `  - Customer: "${sampleRow.Customer}"\n`;
+                }
+                
+                if (rawGoogleSheetsData.taskData && rawGoogleSheetsData.taskData.length > 0) {
+                    debugInfo += '\n📋 TASK_STATUS Fields:\n';
+                    Object.keys(rawGoogleSheetsData.taskData[0]).forEach(field => {
+                        debugInfo += `  - "${field}"\n`;
+                    });
+                    
+                    // Show sample task data
+                    const sampleTaskRow = rawGoogleSheetsData.taskData[0];
+                    debugInfo += '\n📋 Sample Task Row:\n';
+                    if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}"\n`;
+                    debugInfo += `  - Customer: "${sampleTaskRow.Customer}"\n`;
+                    if (sampleTaskRow.isf_transmit) debugInfo += `  - isf_transmit: "${sampleTaskRow.isf_transmit}"\n`;
+                }
+                
+                debugInfo += '\n📝 Transformed Customer Data:\n';
+                if (vesselsData.length > 0 && vesselsData[0].customers && vesselsData[0].customers.length > 0) {
+                    const customer = vesselsData[0].customers[0];
+                    debugInfo += `  - Name: "${customer.name}"\n`;
+                    debugInfo += `  - BOL: "${customer.bol}"\n`;
+                    debugInfo += `  - Task 1 Status: ${customer.tasks[1]}\n`;
+                    debugInfo += `  - Task 2 Status: ${customer.tasks[2]}\n`;
+                    debugInfo += `  - Task 3 Status: ${customer.tasks[3]}\n`;
+                }
+                
+                console.log('🔍 DEBUG INFO:', debugInfo);
+                alert(debugInfo);
+            } catch (error) {
+                console.error('Debug error:', error);
+                alert('Debug error: ' + error.message);
+            }
         }
 
         // REMOVED: Sample data initialization - always load from Google Sheets
