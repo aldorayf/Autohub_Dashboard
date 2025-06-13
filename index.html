@@ -650,7 +650,7 @@
             { id: 12, name: "CBP Release", description: "Obtain customs release" },
             { id: 13, name: "Request SSL/Terminal Release", description: "Request steamship line and terminal release" },
             { id: 14, name: "SSL/Terminal Release Confirmed", description: "Confirm release from SSL and terminal" },
-            { id: 15, name: "Release Notification to Customer", description: "Notify customer of cargo release" },
+            { id: 15, name: "Release Notification to Customer or Transcar", description: "Notify customer of cargo release" },
             { id: 16, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
             { id: 17, name: "Mark Customs Clear in Bitrix", description: "Update customs clearance status" },
             { id: 18, name: "Dispatch Memo to TCAS", description: "Send dispatch instructions to transport company" },
@@ -685,7 +685,7 @@
                     return `${task.description}\nVessel must have arrived prior to requesting`;
                 
                 case 15: // Release Notification
-                    return "Release Notification to Customer or Transcar\nRelease Notification to Customer if no INLAND\nRelease Notification to Transcar if INLAND";
+                    return "Release Notification to Customer if no INLAND\nRelease Notification to Transcar if INLAND";
                 
                 default:
                     return task.description;
@@ -917,6 +917,62 @@
 
         // ADDED: Save customer field function
         async function saveCustomerToGoogleAppsScript(customerName, field, value) {
+            try {
+                const params = new URLSearchParams({
+                    action: 'updateCustomer',
+                    customerName,
+                    field,
+                    value
+                });
+
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`✅ Saved customer field ${field} for ${customerName}`);
+                    return true;
+                } else {
+                    console.error('❌ Customer save failed:', result.error);
+                    return false;
+                }
+            } catch (err) {
+                console.error('❌ Customer save error:', err);
+                return false;
+            }
+        }
+
+        // ADDED: Save ETA to Google Apps Script
+        async function saveETAToGoogleAppsScript(customerName, newETA) {
+            try {
+                const params = new URLSearchParams({
+                    action: 'updateETA',
+                    customerName,
+                    newETA
+                });
+
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`✅ Saved ETA for ${customerName}`);
+                    return true;
+                } else {
+                    console.error('❌ ETA save failed:', result.error);
+                    return false;
+                }
+            } catch (err) {
+                console.error('❌ ETA save error:', err);
+                return false;
+            }
+        }
             try {
                 const params = new URLSearchParams({
                     action: 'updateCustomer',
@@ -1334,6 +1390,9 @@
                         const oldETA = customerData.eta;
                         customerData.eta = newETA;
                         console.log(`✅ Updated ETA for ${customerName} from ${oldETA} to ${newETA}`);
+                        
+                        // Save to Google Sheets
+                        saveETAToGoogleAppsScript(customerName, newETA);
                         
                         setTimeout(() => {
                             renderDashboard();
