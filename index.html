@@ -177,8 +177,8 @@
 
         .vessel-content {
             padding: 2rem;
-            max-height: none;
-            overflow: visible;
+            max-height: none; /* FIXED: Remove height restriction */
+            overflow: visible; /* FIXED: Allow content to be fully visible */
             transition: all 0.5s ease;
         }
 
@@ -251,7 +251,7 @@
             font-size: 0.9rem;
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            cursor: pointer;
+            cursor: pointer; /* ADDED: Make ETA clickable */
             transition: all 0.3s ease;
         }
 
@@ -448,10 +448,6 @@
             border-top-color: #4299e1;
         }
 
-        .stat-card.urgent-tasks {
-            border-top-color: #f56565;
-        }
-
         .stat-number {
             font-size: 2.5rem;
             font-weight: bold;
@@ -463,10 +459,6 @@
             color: #4299e1;
         }
 
-        .stat-number.urgent-tasks {
-            color: #f56565;
-        }
-
         .stat-label {
             color: #4a5568;
             font-weight: bold;
@@ -476,6 +468,7 @@
             display: none;
         }
 
+        /* ADDED: Date input styling */
         .eta-input {
             background: transparent;
             border: none;
@@ -491,16 +484,6 @@
             outline: none;
             background: rgba(255,255,255,0.1);
             border-radius: 4px;
-        }
-
-        .urgent-badge {
-            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            margin-left: 0.5rem;
         }
 
         @media (max-width: 768px) {
@@ -600,6 +583,9 @@
                 <button class="btn" onclick="refreshFilters()" title="Apply current filter settings">🔄 Refresh Filters</button>
                 <button class="btn btn-import" onclick="importData()" title="Import fresh data from Google Sheets">📥 Import Fresh Data</button>
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
+                <button class="btn btn-secondary" onclick="debugFieldNames()" title="Show field names from Google Sheets">🔍 Debug Fields</button>
+                <button class="btn btn-secondary" onclick="attemptDateCorrection()" title="Fix dates that show MM/DD instead of DD/MM">📅 Fix Dates</button>
+                <button class="btn btn-secondary" onclick="testDateParsing()" title="Test date parsing with sample dates">🧪 Test Dates</button>
             </div>
         </div>
     </div>
@@ -618,9 +604,9 @@
                 <div class="stat-number arriving-week" id="arrivingThisWeek">0</div>
                 <div class="stat-label">Arriving This Week</div>
             </div>
-            <div class="stat-card urgent-tasks">
-                <div class="stat-number urgent-tasks" id="urgentTasks">0</div>
-                <div class="stat-label">Urgent Tasks</div>
+            <div class="stat-card">
+                <div class="stat-number" id="pendingTasks">0</div>
+                <div class="stat-label">Pending Tasks</div>
             </div>
         </div>
 
@@ -665,8 +651,7 @@
         let vesselsData = [];
         let vesselCollapsedStates = {};
         let rawGoogleSheetsData = null;
-        let customerTaskStates = {};
-        let pendingUpdates = new Map(); // Track pending updates to prevent race conditions
+        let customerTaskStates = {}; // ADDED: Track task display state per customer
 
         // Enhanced task field mapping
         function getTaskFieldName(taskId) {
@@ -695,56 +680,86 @@
             return fieldNames[taskId] || 'unknown';
         }
 
-        // Date parsing function
-        function parseManifestDate(dateValue) {
-            if (!dateValue) return null;
+        // UPDATED: Manual date correction that preserves exact dates
+        function correctWronglyInterpretedDate(wrongDate) {
+            if (!wrongDate) return null;
             
-            console.log(`📅 Raw date input: "${dateValue}" (type: ${typeof dateValue})`);
-            
-            if (typeof dateValue === 'string' && dateValue.includes('/')) {
-                const parts = dateValue.split('/');
+            // If the date looks like it was wrongly interpreted (e.g., 2025-07-06 instead of 2025-06-07)
+            if (typeof wrongDate === 'string' && wrongDate.includes('-')) {
+                const parts = wrongDate.split('-');
                 if (parts.length === 3) {
-                    const day = parseInt(parts[0]);
-                    const month = parseInt(parts[1]);
-                    const year = parseInt(parts[2]);
+                    const year = parts[0];
+                    const month = parts[1]; 
+                    const day = parts[2];
                     
-                    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020) {
-                        const convertedDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                        console.log(`📅 DD/MM/YYYY conversion: "${dateValue}" → "${convertedDate}"`);
-                        return convertedDate;
+                    // If month and day are both valid and <= 12, we might need to swap them
+                    const monthNum = parseInt(month);
+                    const dayNum = parseInt(day);
+                    
+                    if (monthNum <= 12 && dayNum <= 12 && monthNum !== dayNum) {
+                        // Swap month and day to correct DD/MM -> MM/DD error
+                        const correctedDate = `${year}-${day.padStart(2, '0')}-${month.padStart(2, '0')}`;
+                        console.log(`📅 Date correction: ${wrongDate} → ${correctedDate} (swapped month/day)`);
+                        return correctedDate;
                     }
                 }
             }
             
-            if (dateValue instanceof Date) {
-                const year = dateValue.getFullYear();
-                const month = (dateValue.getMonth() + 1).toString().padStart(2, '0');
-                const day = dateValue.getDate().toString().padStart(2, '0');
-                const convertedDate = `${year}-${month}-${day}`;
-                console.log(`📅 Date object conversion: ${dateValue} → ${convertedDate}`);
-                return convertedDate;
-            }
-            
-            if (typeof dateValue === 'string' && dateValue.includes('T')) {
-                const datePart = dateValue.split('T')[0];
-                console.log(`📅 ISO string conversion: ${dateValue} → ${datePart}`);
-                return datePart;
-            }
-            
-            if (typeof dateValue === 'string' && dateValue.includes('-') && dateValue.length === 10) {
-                console.log(`📅 Already in YYYY-MM-DD format: ${dateValue}`);
-                return dateValue;
-            }
-            
-            console.log(`📅 Fallback parsing for: ${dateValue}`);
-            return dateValue;
+            return wrongDate;
         }
 
+        // ADDED: Function to attempt date correction for known problematic dates
+        function attemptDateCorrection() {
+            console.log('🔧 Attempting to correct wrongly interpreted dates...');
+            
+            let correctionsMade = 0;
+            vesselsData.forEach(vessel => {
+                // Correct vessel ETS
+                const originalETS = vessel.ets;
+                vessel.ets = correctWronglyInterpretedDate(vessel.ets);
+                if (vessel.ets !== originalETS) {
+                    console.log(`📅 Corrected vessel ${vessel.vessel} ETS: ${originalETS} → ${vessel.ets}`);
+                    correctionsMade++;
+                }
+                
+                vessel.customers.forEach(customer => {
+                    // Correct customer ETA
+                    const originalETA = customer.eta;
+                    customer.eta = correctWronglyInterpretedDate(customer.eta);
+                    if (customer.eta !== originalETA) {
+                        console.log(`📅 Corrected ${customer.name} ETA: ${originalETA} → ${customer.eta}`);
+                        correctionsMade++;
+                    }
+                });
+            });
+            
+            if (correctionsMade > 0) {
+                console.log(`✅ Made ${correctionsMade} date corrections`);
+                renderDashboard();
+                updateStatsOnly();
+            } else {
+                console.log('ℹ️ No date corrections needed');
+            }
+        }
         function transformManifestData(manifestData, customerDetails, taskStatus) {
             console.log('🔄 Transforming data...');
             console.log('📊 Manifest rows:', manifestData.length);
             console.log('👥 Customer detail rows:', customerDetails.length);
             console.log('📋 Task status rows:', taskStatus.length);
+            
+            if (manifestData.length > 0) {
+                console.log('📋 Manifest fields:', Object.keys(manifestData[0]));
+                // Debug the first row dates
+                const firstRow = manifestData[0];
+                console.log('📅 First row raw dates:', {
+                    ETA: firstRow.ETA,
+                    ETS: firstRow.ETS,
+                    Customer: firstRow.Customer
+                });
+            }
+            if (taskStatus.length > 0) {
+                console.log('📋 Task Status fields:', Object.keys(taskStatus[0]));
+            }
             
             const vesselsMap = new Map();
             
@@ -764,25 +779,23 @@
                 
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
-                // FIXED: Ensure BOL is always populated from House No.
                 let blNumber = '';
                 if (row['House No.']) {
                     blNumber = row['House No.'];
-                    console.log(`✅ Found BOL from 'House No.' field: ${blNumber} for customer ${row.Customer}`);
+                    console.log(`✅ Found BOL from 'House No.' field: ${blNumber}`);
                 } else {
-                    // Try alternative BOL fields
                     const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
                     for (const field of possibleBLFields) {
                         if (row[field]) {
                             blNumber = row[field];
-                            console.log(`✅ Found BOL in '${field}' field: ${blNumber} for customer ${row.Customer}`);
+                            console.log(`✅ Found BOL in '${field}' field: ${blNumber}`);
                             break;
                         }
                     }
                 }
                 
                 if (!blNumber) {
-                    console.warn(`⚠️ No BOL found for customer: ${row.Customer}`);
+                    console.warn(`⚠️ No BL number found for customer: ${row.Customer}`);
                 }
                 
                 const taskData = taskStatus.find(t => {
@@ -793,6 +806,9 @@
                     
                     if (blNumber && t['BL_No']) {
                         const match = String(t['BL_No']).trim() === String(blNumber).trim();
+                        if (match) {
+                            console.log(`✅ Task data matched for ${row.Customer}, House No./BL_No: ${blNumber}`);
+                        }
                         return match;
                     }
                     
@@ -800,13 +816,16 @@
                 }) || {};
                 
                 const hasTaskData = Object.keys(taskData).length > 0;
+                console.log(`🔍 Customer: ${row.Customer}, BL: ${blNumber}, Task data found: ${hasTaskData}`);
                 
+                // Parse and debug the customer ETA
                 const parsedETA = parseManifestDate(row.ETA);
+                console.log(`📅 Customer ${row.Customer} ETA: ${row.ETA} → ${parsedETA} → displays as: ${formatDate(parsedETA)}`);
                 
                 const customer = {
                     name: row.Customer,
-                    bnumber: customerDetail.BNumber || '', // B# from Customer_Details
-                    bol: blNumber, // FIXED: This should always have a value
+                    bnumber: `B${row['Ref No.']}`,
+                    bol: blNumber,
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
                     pod: row.Port,
@@ -816,14 +835,17 @@
                     taskDates: {}
                 };
                 
+                // FIXED: Initialize tasks with proper status normalization
                 for (let i = 1; i <= 20; i++) {
                     const taskFieldName = getTaskFieldName(i);
                     
                     let taskValue = null;
                     if (hasTaskData && taskData[taskFieldName] !== undefined && taskData[taskFieldName] !== '') {
                         taskValue = taskData[taskFieldName];
+                        console.log(`✅ Found task ${i} (${taskFieldName}): ${taskValue} for ${row.Customer}`);
                     }
                     
+                    // FIXED: Normalize task status
                     customer.tasks[i] = normalizeTaskStatus(taskValue, i);
                     
                     const dateField = `${taskFieldName}_date`;
@@ -840,40 +862,27 @@
             return result;
         }
 
+        // FIXED: Normalize task status to handle both UPPERCASE and lowercase
         function normalizeTaskStatus(taskValue, taskId) {
             if (!taskValue) return getDefaultTaskStatus(taskId);
             
             const task = TASKS.find(t => t.id === taskId);
             if (task && task.customStates) {
+                // For custom states, keep them as-is
                 return taskValue;
             } else {
+                // Normalize standard statuses
                 const normalizedValue = String(taskValue).toLowerCase();
                 if (normalizedValue === 'incomplete') return 'incomplete';
                 if (normalizedValue === 'in-progress') return 'in-progress';
                 if (normalizedValue === 'completed') return 'completed';
-                return 'incomplete';
+                return 'incomplete'; // Default fallback
             }
         }
 
-        function getDefaultTaskStatus(taskId) {
-            if (taskId === 6) return 'NOT RECEIVED';
-            if (taskId === 10) return 'UNPAID';
-            return 'incomplete';
-        }
-
-        // IMPROVED: Save task function with race condition prevention
+        // FIXED: Save task function
         async function saveTaskToGoogleAppsScript(customerName, blNo, taskId, newStatus) {
             try {
-                const updateKey = `${customerName}_${blNo}_${taskId}`;
-                
-                // Prevent multiple simultaneous updates to the same task
-                if (pendingUpdates.has(updateKey)) {
-                    console.log(`⚠️ Update already pending for ${updateKey}, skipping`);
-                    return false;
-                }
-                
-                pendingUpdates.set(updateKey, true);
-                
                 const params = new URLSearchParams({
                     action: 'updateTask',
                     customerName,
@@ -890,52 +899,21 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    console.log(`✅ Saved task ${taskId} for ${customerName} - Status: ${newStatus}`);
+                    console.log(`✅ Saved task ${taskId} for ${customerName}`);
                     return true;
                 } else {
                     console.error('❌ Save failed:', result.error);
+                    alert(`Save failed: ${result.error}`);
                     return false;
                 }
             } catch (err) {
                 console.error('❌ Fetch error:', err);
-                return false;
-            } finally {
-                // Always clear the pending update
-                const updateKey = `${customerName}_${blNo}_${taskId}`;
-                pendingUpdates.delete(updateKey);
-            }
-        }
-
-        // NEW: Save customer details function
-        async function saveCustomerDetail(customerName, field, value) {
-            try {
-                const params = new URLSearchParams({
-                    action: 'updateCustomerDetail',
-                    customerName,
-                    field,
-                    value
-                });
-
-                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log(`✅ Saved ${field} for ${customerName}: ${value}`);
-                    return true;
-                } else {
-                    console.error('❌ Save failed:', result.error);
-                    return false;
-                }
-            } catch (err) {
-                console.error('❌ Fetch error:', err);
+                alert(`Error saving task: ${err.message}`);
                 return false;
             }
         }
 
+        // FIXED: Load data from Google Apps Script
         async function loadFromGoogleAppsScript() {
             try {
                 console.log('🔄 Loading ALL current data from Google Apps Script...');
@@ -979,6 +957,7 @@
             updateStatsOnly();
         }
 
+        // FIXED: Import Data
         async function importData() {
             const dataSourceElement = document.getElementById('dataSource');
             
@@ -1010,14 +989,15 @@
             }
         }
 
-        // FIXED: Task update using customer index instead of B#
-        async function updateTaskStatusByIndex(vessel, customerIndex, taskId, newStatus) {
+        // FIXED: Enhanced task update with proper UI refresh
+        function updateTaskStatus(vessel, customer, taskId, newStatus) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (!vesselData || !vesselData.customers[customerIndex]) return;
+            if (!vesselData) return;
             
-            const customerData = vesselData.customers[customerIndex];
+            const customerData = vesselData.customers.find(c => c.bnumber === customer);
+            if (!customerData) return;
             
-            // Update local data immediately for UI responsiveness
+            // Update local data immediately
             customerData.tasks[taskId] = newStatus;
             
             if (!customerData.taskDates) {
@@ -1028,30 +1008,31 @@
                 customerData.taskDates[taskId] = new Date().toISOString().split('T')[0];
             }
             
-            // Refresh UI immediately
-            const customerId = `${vessel}|${customerIndex}|${customerData.name}`;
-            refreshCustomerTasksByIndex(vessel, customerIndex);
-            updateStatsOnly();
+            // Save to Google Apps Script (async)
+            saveTaskToGoogleAppsScript(customerData.name, customerData.bol, taskId, newStatus);
             
-            // Save to Google Apps Script (async with race condition prevention)
-            await saveTaskToGoogleAppsScript(customerData.name, customerData.bol, taskId, newStatus);
+            // FIXED: Refresh ONLY the specific customer's tasks
+            const customerId = `${vessel}|${customer}`;
+            refreshCustomerTasks(customerId);
+            
+            updateStatsOnly();
         }
 
-        // FIXED: Refresh customer tasks using index
-        function refreshCustomerTasksByIndex(vessel, customerIndex) {
+        // ADDED: Function to refresh specific customer's tasks
+        function refreshCustomerTasks(customerId) {
+            const [vessel, customer] = customerId.split('|');
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (!vesselData || !vesselData.customers[customerIndex]) return;
-            
-            const customerData = vesselData.customers[customerIndex];
-            const customerId = `${vessel}|${customerIndex}|${customerData.name}`;
+            const customerData = vesselData.customers.find(c => c.bnumber === customer);
             
             const tasksContainer = document.getElementById(`tasks-${customerId}`);
             if (tasksContainer) {
                 const showAllBtn = tasksContainer.closest('.customer-card').querySelector('.show-all-btn');
                 const showingAll = showAllBtn && showAllBtn.textContent.includes('Show Less');
                 
-                renderCustomerTasksByIndex(tasksContainer, vessel, customerIndex, showingAll);
+                // Maintain the current state (show all or show next 3)
+                renderCustomerTasks(tasksContainer, customerId, showingAll);
                 
+                // Update task count
                 const tasksHeader = tasksContainer.closest('.customer-card').querySelector('.tasks-title');
                 const nextTasks = getNextTasks(customerData.tasks, 3);
                 tasksHeader.textContent = `📋 Next Tasks (${nextTasks.length} pending)`;
@@ -1063,72 +1044,81 @@
             }
         }
 
-        // FIXED: Render customer tasks using index
-        function renderCustomerTasksByIndex(container, vessel, customerIndex, showAll = false) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (!vesselData || !vesselData.customers[customerIndex]) return;
+        // COMPLETELY REWRITTEN: Date parsing that explicitly handles DD/MM/YYYY format
+        function parseManifestDate(dateValue) {
+            if (!dateValue) return null;
             
-            const customerData = vesselData.customers[customerIndex];
+            console.log(`📅 Raw date input: "${dateValue}" (type: ${typeof dateValue})`);
             
-            const tasksToShow = showAll ? 
-                getAllTasks(customerData.tasks) : 
-                getNextTasks(customerData.tasks, 3);
-            
-            container.innerHTML = '';
-            
-            tasksToShow.forEach(taskId => {
-                if (!shouldShowTask(taskId, customerData)) return;
-                
-                const task = TASKS.find(t => t.id === taskId);
-                const status = customerData.tasks[taskId] || 'incomplete';
-                const taskDate = customerData.taskDates && customerData.taskDates[taskId] ? 
-                    formatDate(customerData.taskDates[taskId]) : '';
-                
-                const taskElement = document.createElement('div');
-                
-                let cssStatus = status;
-                if (task && task.customStates) {
-                    cssStatus = status.replace(/\s+/g, '-').toLowerCase();
-                } else {
-                    cssStatus = String(status).toLowerCase().replace(/\s+/g, '-');
+            // FIRST: Handle DD/MM/YYYY string format (most common from Google Sheets)
+            if (typeof dateValue === 'string' && dateValue.includes('/')) {
+                const parts = dateValue.split('/');
+                if (parts.length === 3) {
+                    // EXPLICIT: Assume DD/MM/YYYY format from Google Sheets
+                    const day = parseInt(parts[0]);
+                    const month = parseInt(parts[1]);
+                    const year = parseInt(parts[2]);
+                    
+                    // Validate the date components
+                    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2020) {
+                        const convertedDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                        console.log(`📅 DD/MM/YYYY conversion: "${dateValue}" → "${convertedDate}"`);
+                        
+                        // Verify this makes sense
+                        const testDate = new Date(year, month - 1, day); // month is 0-indexed
+                        console.log(`📅 Verification: ${convertedDate} should display as ${testDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`);
+                        
+                        return convertedDate;
+                    }
                 }
-                
-                taskElement.className = `task-item ${cssStatus}`;
-                taskElement.onclick = () => {
-                    const newStatus = cycleTaskStatus(status, taskId);
-                    updateTaskStatusByIndex(vessel, customerIndex, taskId, newStatus);
-                };
-                
-                let displayStatus = status;
-                let statusClass = cssStatus;
-                if (!task.customStates) {
-                    displayStatus = status.replace(/-/g, ' ').toUpperCase();
-                }
-                
-                taskElement.innerHTML = `
-                    <div class="task-header">
-                        <div class="task-number">${taskId}</div>
-                        <div class="task-status status-${statusClass}">${displayStatus}</div>
-                    </div>
-                    <div class="task-name">${task.name}</div>
-                    <div class="task-description">${task.description}</div>
-                    ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
-                `;
-                
-                container.appendChild(taskElement);
-            });
+            }
+            
+            // SECOND: Handle Date objects (extract components without timezone issues)
+            if (dateValue instanceof Date) {
+                const year = dateValue.getFullYear();
+                const month = (dateValue.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateValue.getDate().toString().padStart(2, '0');
+                const convertedDate = `${year}-${month}-${day}`;
+                console.log(`📅 Date object conversion: ${dateValue} → ${convertedDate}`);
+                return convertedDate;
+            }
+            
+            // THIRD: Handle ISO strings (just take the date part)
+            if (typeof dateValue === 'string' && dateValue.includes('T')) {
+                const datePart = dateValue.split('T')[0];
+                console.log(`📅 ISO string conversion: ${dateValue} → ${datePart}`);
+                return datePart;
+            }
+            
+            // FOURTH: Handle YYYY-MM-DD strings (already in correct format)
+            if (typeof dateValue === 'string' && dateValue.includes('-') && dateValue.length === 10) {
+                console.log(`📅 Already in YYYY-MM-DD format: ${dateValue}`);
+                return dateValue;
+            }
+            
+            // FALLBACK: Try to parse as-is
+            console.log(`📅 Fallback parsing for: ${dateValue}`);
+            return dateValue;
+        }
+
+        function getDefaultTaskStatus(taskId) {
+            if (taskId === 6) return 'NOT RECEIVED';
+            if (taskId === 10) return 'UNPAID';
+            return 'incomplete';
         }
 
         function formatDate(dateString) {
             if (!dateString) return 'N/A';
             
+            // Parse the YYYY-MM-DD format without timezone conversion
             if (typeof dateString === 'string' && dateString.includes('-')) {
                 const parts = dateString.split('-');
                 if (parts.length === 3) {
                     const year = parseInt(parts[0]);
-                    const month = parseInt(parts[1]) - 1;
+                    const month = parseInt(parts[1]) - 1; // Month is 0-indexed in JavaScript
                     const day = parseInt(parts[2]);
                     
+                    // Create date using local timezone to avoid shifts
                     const date = new Date(year, month, day);
                     const formatted = date.toLocaleDateString('en-US', { 
                         year: 'numeric', 
@@ -1136,10 +1126,12 @@
                         day: 'numeric' 
                     });
                     
+                    console.log(`📅 Format: ${dateString} → ${formatted}`);
                     return formatted;
                 }
             }
             
+            // Fallback for other formats
             try {
                 const date = new Date(dateString);
                 return date.toLocaleDateString('en-US', { 
@@ -1153,6 +1145,7 @@
             }
         }
 
+        // FIXED: Get next tasks function to properly identify incomplete tasks
         function getNextTasks(customerTasks, limit = 3) {
             const nextTasks = [];
             for (let i = 1; i <= TASKS.length; i++) {
@@ -1161,8 +1154,10 @@
                 let isIncomplete = false;
                 
                 if (task && task.customStates) {
+                    // For custom states, check if it's the first state (incomplete)
                     isIncomplete = status === task.customStates[0];
                 } else {
+                    // For standard states, check if incomplete or in-progress
                     isIncomplete = status === 'incomplete' || status === 'in-progress';
                 }
                 
@@ -1200,6 +1195,7 @@
             return true;
         }
 
+        // FIXED: Cycle task status function
         function cycleTaskStatus(currentStatus, taskId) {
             const task = TASKS.find(t => t.id === taskId);
             
@@ -1209,6 +1205,7 @@
                 const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % states.length;
                 return states[nextIndex];
             } else {
+                // FIXED: Handle both UPPERCASE and lowercase properly
                 const normalizedStatus = String(currentStatus).toLowerCase();
                 switch (normalizedStatus) {
                     case 'incomplete': return 'in-progress';
@@ -1253,34 +1250,91 @@
             return true;
         }
 
-        // FIXED: Customer field update using index instead of B# for reliable identification
-        function updateCustomerFieldByIndex(vessel, customerIndex, field, value) {
+        // FIXED: Render customer tasks with proper status display
+        function renderCustomerTasks(container, customerId, showAll = false) {
+            const [vessel, customer] = customerId.split('|');
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData && vesselData.customers[customerIndex]) {
-                const customerData = vesselData.customers[customerIndex];
-                const oldValue = customerData[field];
-                customerData[field] = value;
-                console.log(`Updated ${field} for ${customerData.name} from "${oldValue}" to "${value}"`);
+            const customerData = vesselData.customers.find(c => c.bnumber === customer);
+            
+            const tasksToShow = showAll ? 
+                getAllTasks(customerData.tasks) : 
+                getNextTasks(customerData.tasks, 3);
+            
+            container.innerHTML = '';
+            
+            tasksToShow.forEach(taskId => {
+                if (!shouldShowTask(taskId, customerData)) return;
                 
-                // Save to Google Sheets for notes, email, inland, and bnumber
-                if (field === 'notes' || field === 'email' || field === 'inland' || field === 'bnumber') {
-                    saveCustomerDetail(customerData.name, field, value);
+                const task = TASKS.find(t => t.id === taskId);
+                const status = customerData.tasks[taskId] || 'incomplete';
+                const taskDate = customerData.taskDates && customerData.taskDates[taskId] ? 
+                    formatDate(customerData.taskDates[taskId]) : '';
+                
+                const taskElement = document.createElement('div');
+                
+                // FIXED: Proper status normalization for CSS classes
+                let cssStatus = status;
+                if (task && task.customStates) {
+                    cssStatus = status.replace(/\s+/g, '-').toLowerCase();
+                } else {
+                    cssStatus = String(status).toLowerCase().replace(/\s+/g, '-');
                 }
                 
-                // If updating B#, refresh the display
-                if (field === 'bnumber') {
-                    setTimeout(() => {
-                        renderDashboard();
-                        updateStatsOnly();
-                    }, 100);
+                taskElement.className = `task-item ${cssStatus}`;
+                taskElement.onclick = () => {
+                    const newStatus = cycleTaskStatus(status, taskId);
+                    updateTaskStatus(vessel, customer, taskId, newStatus);
+                };
+                
+                let displayStatus = status;
+                let statusClass = cssStatus;
+                if (!task.customStates) {
+                    displayStatus = status.replace(/-/g, ' ').toUpperCase();
                 }
+                
+                taskElement.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-number">${taskId}</div>
+                        <div class="task-status status-${statusClass}">${displayStatus}</div>
+                    </div>
+                    <div class="task-name">${task.name}</div>
+                    <div class="task-description">${task.description}</div>
+                    ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
+                `;
+                
+                container.appendChild(taskElement);
+            });
+        }
+
+        // FIXED: Function to update ETA
+        function updateETA(vessel, bnumber, newETA) {
+            try {
+                const vesselData = vesselsData.find(v => v.vessel === vessel);
+                if (vesselData) {
+                    const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                    if (customerData) {
+                        const oldETA = customerData.eta;
+                        customerData.eta = newETA;
+                        console.log(`✅ Updated ETA for ${bnumber} from ${oldETA} to ${newETA}`);
+                        
+                        // Re-render the dashboard to show the updated date
+                        setTimeout(() => {
+                            renderDashboard();
+                            updateStatsOnly();
+                        }, 100);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error updating ETA:', error);
             }
         }
 
-        // FIXED: ETA update using index
-        function makeETAEditableByIndex(element, vessel, customerIndex, currentETA) {
+        // FIXED: Function to make ETA editable
+        function makeETAEditable(element, vessel, bnumber, currentETA) {
+            // Prevent event bubbling
             event.stopPropagation();
             
+            // Store original content
             const originalContent = element.innerHTML;
             
             try {
@@ -1303,8 +1357,9 @@
                 const saveAndRestore = () => {
                     try {
                         if (input.value && input.value !== currentETA) {
-                            updateETAByIndex(vessel, customerIndex, input.value);
+                            updateETA(vessel, bnumber, input.value);
                         } else {
+                            // Restore original content if no change
                             element.innerHTML = originalContent;
                         }
                     } catch (error) {
@@ -1328,6 +1383,7 @@
                 element.innerHTML = '';
                 element.appendChild(input);
                 
+                // Focus after a short delay to ensure it's rendered
                 setTimeout(() => {
                     input.focus();
                     input.select();
@@ -1337,103 +1393,6 @@
                 console.error('Error creating ETA editor:', error);
                 element.innerHTML = originalContent;
             }
-        }
-
-        // FIXED: ETA update using index
-        function updateETAByIndex(vessel, customerIndex, newETA) {
-            try {
-                const vesselData = vesselsData.find(v => v.vessel === vessel);
-                if (vesselData && vesselData.customers[customerIndex]) {
-                    const customerData = vesselData.customers[customerIndex];
-                    const oldETA = customerData.eta;
-                    customerData.eta = newETA;
-                    console.log(`✅ Updated ETA for ${customerData.name} from ${oldETA} to ${newETA}`);
-                    
-                    setTimeout(() => {
-                        renderDashboard();
-                        updateStatsOnly();
-                    }, 100);
-                }
-            } catch (error) {
-                console.error('❌ Error updating ETA:', error);
-            }
-        }
-
-        // FIXED: Inland status toggle using index
-        function toggleInlandStatusByIndex(vessel, customerIndex) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData && vesselData.customers[customerIndex]) {
-                const customerData = vesselData.customers[customerIndex];
-                customerData.inland = cycleInlandStatus(customerData.inland);
-                
-                // Save to Google Sheets
-                saveCustomerDetail(customerData.name, 'inland', customerData.inland);
-                
-                // Update the UI immediately
-                const customerCards = document.querySelectorAll('.customer-card');
-                customerCards.forEach(card => {
-                    const inlandBadge = card.querySelector('.inland-badge');
-                    if (inlandBadge && card.querySelector(`input[value="${customerData.name}"]`)) {
-                        inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
-                        inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
-                    }
-                });
-                
-                updateStatsOnly();
-            }
-        }
-
-        // NEW: Calculate urgent tasks (tasks not completed where ETA is today or later)
-        function countUrgentTasks(vessels) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            let urgentCount = 0;
-            vessels.forEach(vessel => {
-                const customersToCount = vessel.filteredCustomers || vessel.customers;
-                customersToCount.forEach(customer => {
-                    const etaDate = new Date(customer.eta);
-                    etaDate.setHours(0, 0, 0, 0);
-                    
-                    // Only count if ETA is today or later
-                    if (etaDate >= today) {
-                        TASKS.forEach(task => {
-                            const status = customer.tasks[task.id];
-                            if (task.customStates) {
-                                if (status === task.customStates[0]) urgentCount++;
-                            } else {
-                                if (status === 'incomplete' || status === 'in-progress') urgentCount++;
-                            }
-                        });
-                    }
-                });
-            });
-            return urgentCount;
-        }
-
-        // NEW: Calculate urgent tasks for a specific vessel
-        function countVesselUrgentTasks(vessel) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            let urgentCount = 0;
-            const customersToCount = vessel.filteredCustomers || vessel.customers;
-            customersToCount.forEach(customer => {
-                const etaDate = new Date(customer.eta);
-                etaDate.setHours(0, 0, 0, 0);
-                
-                if (etaDate >= today) {
-                    TASKS.forEach(task => {
-                        const status = customer.tasks[task.id];
-                        if (task.customStates) {
-                            if (status === task.customStates[0]) urgentCount++;
-                        } else {
-                            if (status === 'incomplete' || status === 'in-progress') urgentCount++;
-                        }
-                    });
-                }
-            });
-            return urgentCount;
         }
 
         // Filtering and rendering functions
@@ -1565,7 +1524,6 @@
             return count;
         }
 
-        // UPDATED: Stats function now includes urgent tasks
         function updateStatsOnly() {
             const filteredVessels = applyFilters(vesselsData);
             
@@ -1575,12 +1533,26 @@
                 return sum + customersToCount.length;
             }, 0);
             const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
-            const urgentTasks = countUrgentTasks(filteredVessels); // NEW: Urgent tasks instead of pending
+            let pendingTasks = 0;
+            
+            filteredVessels.forEach(vessel => {
+                const customersToCount = vessel.filteredCustomers || vessel.customers;
+                customersToCount.forEach(customer => {
+                    TASKS.forEach(task => {
+                        const status = customer.tasks[task.id];
+                        if (task.customStates) {
+                            if (status === task.customStates[0]) pendingTasks++;
+                        } else {
+                            if (status === 'incomplete' || status === 'in-progress') pendingTasks++;
+                        }
+                    });
+                });
+            });
             
             document.getElementById('totalVessels').textContent = totalVessels;
             document.getElementById('totalCustomers').textContent = totalCustomers;
             document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
-            document.getElementById('urgentTasks').textContent = urgentTasks; // UPDATED
+            document.getElementById('pendingTasks').textContent = pendingTasks;
         }
 
         function populateFilters() {
@@ -1641,15 +1613,47 @@
             const button = customerCard.querySelector('.show-all-btn');
             const isShowingAll = button.textContent.includes('Show Less');
             
-            // FIXED: Parse the new customerId format (vessel|index|name)
-            const [vessel, customerIndex, customerName] = customerId.split('|');
-            
             if (isShowingAll) {
                 button.textContent = '📋 Show All Tasks';
-                renderCustomerTasksByIndex(container, vessel, parseInt(customerIndex), false);
+                renderCustomerTasks(container, customerId, false);
             } else {
                 button.textContent = '📋 Show Less';
-                renderCustomerTasksByIndex(container, vessel, parseInt(customerIndex), true);
+                renderCustomerTasks(container, customerId, true);
+            }
+        }
+
+        function updateCustomerField(vessel, bnumber, field, value) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData[field] = value;
+                    console.log(`Updated ${field} for ${bnumber} to ${value}`);
+                }
+            }
+        }
+
+        function toggleInlandStatus(vessel, bnumber) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData.inland = cycleInlandStatus(customerData.inland);
+                    
+                    const customerCards = document.querySelectorAll('.customer-card');
+                    customerCards.forEach(card => {
+                        const bnumberInput = card.querySelector('input[value="' + bnumber + '"]');
+                        if (bnumberInput) {
+                            const inlandBadge = card.querySelector('.inland-badge');
+                            if (inlandBadge) {
+                                inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
+                                inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
+                            }
+                        }
+                    });
+                    
+                    updateStatsOnly();
+                }
             }
         }
 
@@ -1679,7 +1683,6 @@
                 vesselCard.className = 'vessel-card';
                 
                 const vesselETA = getVesselETARange(vessel);
-                const vesselUrgentTasks = countVesselUrgentTasks(vessel); // NEW
                 
                 vesselCard.innerHTML = `
                     <div class="vessel-header" onclick="toggleVessel(this)">
@@ -1688,13 +1691,12 @@
                             <span class="collapse-icon">▼</span>
                         </div>
                         <div class="vessel-info">
-                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ETA: ${vesselETA || 'N/A'} | ${sortedCustomers.length} Customer(s)${vesselUrgentTasks > 0 ? `<span class="urgent-badge">${vesselUrgentTasks} Urgent</span>` : ''}
+                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ETA: ${vesselETA || 'N/A'} | ${sortedCustomers.length} Customer(s)
                         </div>
                     </div>
                     <div class="vessel-content">
-                        ${sortedCustomers.map((customer, customerIndex) => {
-                            // FIXED: Use customer index + name for reliable identification instead of B#
-                            const customerId = `${vessel.vessel}|${customerIndex}|${customer.name}`;
+                        ${sortedCustomers.map(customer => {
+                            const customerId = `${vessel.vessel}|${customer.bnumber}`;
                             const nextTasks = getNextTasks(customer.tasks, 3);
                             
                             return `
@@ -1703,38 +1705,37 @@
                                         <div>
                                             <div class="customer-name">
                                                 <input type="text" value="${customer.name}" 
-                                                       onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'name', this.value)"
+                                                       onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'name', this.value)"
                                                        style="border: none; background: transparent; font-size: 1.3rem; font-weight: bold; color: #2d3748; width: 100%; padding: 2px;">
                                             </div>
                                             <div class="customer-details">
-                                                B#: <input type="text" value="${customer.bnumber || ''}" 
-                                                          onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'bnumber', this.value)"
-                                                          style="border: none; background: transparent; color: #4a5568; padding: 2px;"
-                                                          placeholder="Enter B#">
+                                                B#: <input type="text" value="${customer.bnumber}" 
+                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bnumber', this.value)"
+                                                          style="border: none; background: transparent; color: #4a5568; padding: 2px;">
                                                 | BOL: <input type="text" value="${customer.bol || ''}" 
-                                                             onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'bol', this.value)"
+                                                             onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bol', this.value)"
                                                              style="border: none; background: transparent; color: #4a5568; padding: 2px;">
                                             </div>
                                             <div class="customer-details">
                                                 Email: <input type="email" value="${customer.email || ''}" 
-                                                              onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'email', this.value)"
+                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'email', this.value)"
                                                               style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
                                                               placeholder="Enter email address">
                                             </div>
                                             <div class="customer-details">
                                                 Notes: 
                                                 <textarea class="customer-notes" 
-                                                         onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'notes', this.value)"
+                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'notes', this.value)"
                                                          placeholder="Add customer notes..."
                                                          rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
-                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditableByIndex(this, '${vessel.vessel}', ${customerIndex}, '${customer.eta}')">
+                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.bnumber}', '${customer.eta}')">
                                             ETA: ${formatDate(customer.eta)}
                                         </div>
                                         <div class="port-badge">${customer.pod}</div>
                                         <div class="inland-badge ${getInlandClass(customer.inland)}" 
-                                             onclick="toggleInlandStatusByIndex('${vessel.vessel}', ${customerIndex})"
+                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.bnumber}')"
                                              style="cursor: pointer;">
                                             Inland: ${getInlandDisplay(customer.inland)}
                                         </div>
@@ -1768,11 +1769,11 @@
                     collapseIcon.textContent = '▶';
                 }
                 
-                // Render tasks using new index-based system
-                sortedCustomers.forEach((customer, customerIndex) => {
-                    const customerId = `${vessel.vessel}|${customerIndex}|${customer.name}`;
+                // Render tasks
+                sortedCustomers.forEach(customer => {
+                    const customerId = `${vessel.vessel}|${customer.bnumber}`;
                     const tasksContainer = document.getElementById(`tasks-${customerId}`);
-                    renderCustomerTasksByIndex(tasksContainer, vessel.vessel, customerIndex, false);
+                    renderCustomerTasks(tasksContainer, customerId, false);
                 });
             });
             
@@ -1783,71 +1784,80 @@
             alert('Export functionality would be implemented here');
         }
 
-        // LEGACY FUNCTIONS - KEPT FOR COMPATIBILITY
-        function updateCustomerField(vessel, bnumber, field, value) {
-            console.warn('Legacy updateCustomerField called - this should use index-based functions');
-            // Try to find customer by name or bnumber and redirect to index-based function
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerIndex = vesselData.customers.findIndex(c => 
-                    c.bnumber === bnumber || c.name === bnumber
-                );
-                if (customerIndex !== -1) {
-                    updateCustomerFieldByIndex(vessel, customerIndex, field, value);
+        // ENHANCED: Debug function with date correction option
+        async function debugFieldNames() {
+            if (!rawGoogleSheetsData) {
+                alert('No raw data available. Please click "Import Fresh Data" first.');
+                return;
+            }
+            
+            try {
+                let debugInfo = '🔍 DEBUG: Google Sheets Field Names & Date Analysis\n\n';
+                
+                debugInfo += '🔗 FIELD MAPPING:\n';
+                debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
+                debugInfo += '  - Task_Status "BL_No" → Matches House No. for task updates\n\n';
+                
+                if (rawGoogleSheetsData.manifestData && rawGoogleSheetsData.manifestData.length > 0) {
+                    debugInfo += '📊 MANIFEST_DATA Fields:\n';
+                    Object.keys(rawGoogleSheetsData.manifestData[0]).forEach(field => {
+                        debugInfo += `  - "${field}"\n`;
+                    });
+                    
+                    const sampleRow = rawGoogleSheetsData.manifestData[0];
+                    debugInfo += '\n📊 Sample Manifest Row (BOL & Date Mapping):\n';
+                    if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}" ← THIS goes to Dashboard BOL field\n`;
+                    if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}" (different field)\n`;
+                    debugInfo += `  - Customer: "${sampleRow.Customer}"\n`;
+                    debugInfo += `  - Raw ETA: "${sampleRow.ETA}" (should be DD/MM/YYYY)\n`;
+                    debugInfo += `  - Raw ETS: "${sampleRow.ETS}" (should be DD/MM/YYYY)\n`;
                 }
-            }
-        }
-
-        function updateETA(vessel, bnumber, newETA) {
-            console.warn('Legacy updateETA called - redirecting to index-based function');
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerIndex = vesselData.customers.findIndex(c => 
-                    c.bnumber === bnumber || c.name === bnumber
-                );
-                if (customerIndex !== -1) {
-                    updateETAByIndex(vessel, customerIndex, newETA);
+                
+                if (rawGoogleSheetsData.taskData && rawGoogleSheetsData.taskData.length > 0) {
+                    debugInfo += '\n📋 TASK_STATUS Fields:\n';
+                    Object.keys(rawGoogleSheetsData.taskData[0]).forEach(field => {
+                        debugInfo += `  - "${field}"\n`;
+                    });
+                    
+                    const sampleTaskRow = rawGoogleSheetsData.taskData[0];
+                    debugInfo += '\n📋 Sample Task Row (Matching):\n';
+                    if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}" ← Should match House No. from Manifest\n`;
+                    debugInfo += `  - Customer: "${sampleTaskRow.Customer}"\n`;
+                    if (sampleTaskRow.isf_transmit) debugInfo += `  - isf_transmit: "${sampleTaskRow.isf_transmit}"\n`;
                 }
-            }
-        }
-
-        function makeETAEditable(element, vessel, bnumber, currentETA) {
-            console.warn('Legacy makeETAEditable called - redirecting to index-based function');
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerIndex = vesselData.customers.findIndex(c => 
-                    c.bnumber === bnumber || c.name === bnumber
-                );
-                if (customerIndex !== -1) {
-                    makeETAEditableByIndex(element, vessel, customerIndex, currentETA);
+                
+                debugInfo += '\n📝 Current Dashboard Data:\n';
+                if (vesselsData.length > 0 && vesselsData[0].customers && vesselsData[0].customers.length > 0) {
+                    const customer = vesselsData[0].customers[0];
+                    debugInfo += `  - Name: "${customer.name}"\n`;
+                    debugInfo += `  - BOL: "${customer.bol}"\n`;
+                    debugInfo += `  - Current ETA: "${customer.eta}" → displays as: ${formatDate(customer.eta)}\n`;
+                    debugInfo += `  - Task 1 Status: ${customer.tasks[1]}\n`;
+                    debugInfo += `  - Task 2 Status: ${customer.tasks[2]}\n`;
+                    debugInfo += `  - Task 3 Status: ${customer.tasks[3]}\n`;
                 }
-            }
-        }
-
-        function toggleInlandStatus(vessel, bnumber) {
-            console.warn('Legacy toggleInlandStatus called - redirecting to index-based function');
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerIndex = vesselData.customers.findIndex(c => 
-                    c.bnumber === bnumber || c.name === bnumber
-                );
-                if (customerIndex !== -1) {
-                    toggleInlandStatusByIndex(vessel, customerIndex);
+                
+                debugInfo += '\n🔧 DATE CORRECTION:\n';
+                debugInfo += 'If dates are showing incorrectly (e.g., July 6 instead of June 7),\n';
+                debugInfo += 'this usually means Google Sheets interpreted DD/MM as MM/DD.\n\n';
+                debugInfo += 'Would you like to attempt automatic date correction?\n';
+                debugInfo += '(This will try to swap month/day for dates where both values are ≤12)';
+                
+                console.log('🔍 DEBUG INFO:', debugInfo);
+                
+                const userChoice = confirm(debugInfo + '\n\nClick OK to attempt date correction, Cancel to just view debug info.');
+                
+                if (userChoice) {
+                    attemptDateCorrection();
                 }
+                
+            } catch (error) {
+                console.error('Debug error:', error);
+                alert('Debug error: ' + error.message);
             }
         }
 
-        // LEGACY FUNCTIONS - REMOVED (now using index-based functions)
-        // These functions are kept for compatibility but redirect to new index-based functions
-        function renderCustomerTasks(container, customerId, showAll = false) {
-            console.warn('Legacy renderCustomerTasks called - redirecting to index-based function');
-            const [vessel, customerIndex, customerName] = customerId.split('|');
-            if (customerIndex && !isNaN(customerIndex)) {
-                renderCustomerTasksByIndex(container, vessel, parseInt(customerIndex), showAll);
-            }
-        }
-
-        // Initialize dashboard
+        // FIXED: Initialize dashboard
         document.addEventListener('DOMContentLoaded', async () => {
             const dataSourceElement = document.getElementById('dataSource');
             
