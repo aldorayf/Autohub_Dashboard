@@ -584,6 +584,7 @@
                 <button class="btn btn-import" onclick="importData()" title="Import fresh data from Google Sheets">📥 Import Fresh Data</button>
                 <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
                 <button class="btn btn-secondary" onclick="debugFieldNames()" title="Show field names from Google Sheets">🔍 Debug Fields</button>
+                <button class="btn btn-secondary" onclick="attemptDateCorrection()" title="Fix dates that show MM/DD instead of DD/MM">📅 Fix Dates</button>
             </div>
         </div>
     </div>
@@ -678,7 +679,67 @@
             return fieldNames[taskId] || 'unknown';
         }
 
-        // FIXED: Enhanced data transformation with correct BOL field mapping and better date debugging
+        // ADDED: Manual date correction for dates that were wrongly interpreted as MM/DD instead of DD/MM
+        function correctWronglyInterpretedDate(wrongDate) {
+            if (!wrongDate) return null;
+            
+            // If the date looks like it was wrongly interpreted (e.g., July 6 instead of June 7)
+            if (typeof wrongDate === 'string' && wrongDate.includes('-')) {
+                const parts = wrongDate.split('-');
+                if (parts.length === 3) {
+                    const year = parts[0];
+                    const month = parts[1]; 
+                    const day = parts[2];
+                    
+                    // If month and day are both valid and <= 12, we might need to swap them
+                    const monthNum = parseInt(month);
+                    const dayNum = parseInt(day);
+                    
+                    if (monthNum <= 12 && dayNum <= 12 && monthNum !== dayNum) {
+                        // Swap month and day to correct DD/MM -> MM/DD error
+                        const correctedDate = `${year}-${day.padStart(2, '0')}-${month.padStart(2, '0')}`;
+                        console.log(`📅 Date correction: ${wrongDate} → ${correctedDate}`);
+                        return correctedDate;
+                    }
+                }
+            }
+            
+            return wrongDate;
+        }
+
+        // ADDED: Function to attempt date correction for known problematic dates
+        function attemptDateCorrection() {
+            console.log('🔧 Attempting to correct wrongly interpreted dates...');
+            
+            let correctionsMade = 0;
+            vesselsData.forEach(vessel => {
+                // Correct vessel ETS
+                const originalETS = vessel.ets;
+                vessel.ets = correctWronglyInterpretedDate(vessel.ets);
+                if (vessel.ets !== originalETS) {
+                    console.log(`📅 Corrected vessel ${vessel.vessel} ETS: ${originalETS} → ${vessel.ets}`);
+                    correctionsMade++;
+                }
+                
+                vessel.customers.forEach(customer => {
+                    // Correct customer ETA
+                    const originalETA = customer.eta;
+                    customer.eta = correctWronglyInterpretedDate(customer.eta);
+                    if (customer.eta !== originalETA) {
+                        console.log(`📅 Corrected ${customer.name} ETA: ${originalETA} → ${customer.eta}`);
+                        correctionsMade++;
+                    }
+                });
+            });
+            
+            if (correctionsMade > 0) {
+                console.log(`✅ Made ${correctionsMade} date corrections`);
+                renderDashboard();
+                updateStatsOnly();
+            } else {
+                console.log('ℹ️ No date corrections needed');
+            }
+        }
         function transformManifestData(manifestData, customerDetails, taskStatus) {
             console.log('🔄 Transforming data...');
             console.log('📊 Manifest rows:', manifestData.length);
@@ -982,28 +1043,51 @@
             }
         }
 
-        // FIXED: Date parsing function to handle DD/MM/YYYY format
-        function parseManifestDate(dateString) {
-            if (!dateString) return null;
+        // FIXED: Date parsing function to handle both raw DD/MM/YYYY strings and already-converted Date objects
+        function parseManifestDate(dateValue) {
+            if (!dateValue) return null;
             
-            // Handle DD/MM/YYYY format from Google Sheets
-            const parts = String(dateString).split('/');
-            if (parts.length === 3) {
-                const day = parts[0].padStart(2, '0');
-                const month = parts[1].padStart(2, '0');
-                const year = parts[2];
-                
-                // Convert DD/MM/YYYY to YYYY-MM-DD
-                const convertedDate = `${year}-${month}-${day}`;
-                console.log(`📅 Date conversion: ${dateString} (DD/MM/YYYY) → ${convertedDate} (YYYY-MM-DD)`);
-                
-                // Verify the conversion
-                const testDate = new Date(convertedDate);
-                console.log(`📅 Verification: ${convertedDate} displays as ${testDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`);
-                
+            console.log(`📅 Raw date input: ${dateValue} (type: ${typeof dateValue})`);
+            
+            // If it's already a Date object or ISO string, we need to check if it was wrongly interpreted
+            if (dateValue instanceof Date || (typeof dateValue === 'string' && dateValue.includes('T'))) {
+                // This date was already converted by Google Sheets, likely with wrong interpretation
+                // We need to get the raw string value instead
+                console.log(`⚠️ Date already converted by Google Sheets: ${dateValue}`);
+                return dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : dateValue.split('T')[0];
+            }
+            
+            // Handle raw DD/MM/YYYY format string
+            if (typeof dateValue === 'string' && dateValue.includes('/')) {
+                const parts = dateValue.split('/');
+                if (parts.length === 3) {
+                    const day = parts[0].padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[2];
+                    
+                    // Convert DD/MM/YYYY to YYYY-MM-DD
+                    const convertedDate = `${year}-${month}-${day}`;
+                    console.log(`📅 Date conversion: ${dateValue} (DD/MM/YYYY) → ${convertedDate} (YYYY-MM-DD)`);
+                    
+                    // Verify the conversion
+                    const testDate = new Date(convertedDate);
+                    console.log(`📅 Verification: ${convertedDate} displays as ${testDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`);
+                    
+                    return convertedDate;
+                }
+            }
+            
+            // Handle numeric date values (Excel serial dates)
+            if (typeof dateValue === 'number') {
+                // Convert Excel serial date to JavaScript Date
+                const excelEpoch = new Date(1900, 0, 1);
+                const jsDate = new Date(excelEpoch.getTime() + (dateValue - 2) * 24 * 60 * 60 * 1000);
+                const convertedDate = jsDate.toISOString().split('T')[0];
+                console.log(`📅 Excel serial date conversion: ${dateValue} → ${convertedDate}`);
                 return convertedDate;
             }
-            return dateString;
+            
+            return dateValue;
         }
 
         function getDefaultTaskStatus(taskId) {
@@ -1660,7 +1744,7 @@
             alert('Export functionality would be implemented here');
         }
 
-        // Debug function to show field names
+        // ENHANCED: Debug function with date correction option
         async function debugFieldNames() {
             if (!rawGoogleSheetsData) {
                 alert('No raw data available. Please click "Import Fresh Data" first.');
@@ -1668,7 +1752,7 @@
             }
             
             try {
-                let debugInfo = '🔍 DEBUG: Google Sheets Field Names\n\n';
+                let debugInfo = '🔍 DEBUG: Google Sheets Field Names & Date Analysis\n\n';
                 
                 debugInfo += '🔗 FIELD MAPPING:\n';
                 debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
@@ -1681,10 +1765,12 @@
                     });
                     
                     const sampleRow = rawGoogleSheetsData.manifestData[0];
-                    debugInfo += '\n📊 Sample Manifest Row (BOL Mapping):\n';
+                    debugInfo += '\n📊 Sample Manifest Row (BOL & Date Mapping):\n';
                     if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}" ← THIS goes to Dashboard BOL field\n`;
                     if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}" (different field)\n`;
                     debugInfo += `  - Customer: "${sampleRow.Customer}"\n`;
+                    debugInfo += `  - Raw ETA: "${sampleRow.ETA}" (should be DD/MM/YYYY)\n`;
+                    debugInfo += `  - Raw ETS: "${sampleRow.ETS}" (should be DD/MM/YYYY)\n`;
                 }
                 
                 if (rawGoogleSheetsData.taskData && rawGoogleSheetsData.taskData.length > 0) {
@@ -1700,18 +1786,31 @@
                     if (sampleTaskRow.isf_transmit) debugInfo += `  - isf_transmit: "${sampleTaskRow.isf_transmit}"\n`;
                 }
                 
-                debugInfo += '\n📝 Transformed Customer Data:\n';
+                debugInfo += '\n📝 Current Dashboard Data:\n';
                 if (vesselsData.length > 0 && vesselsData[0].customers && vesselsData[0].customers.length > 0) {
                     const customer = vesselsData[0].customers[0];
                     debugInfo += `  - Name: "${customer.name}"\n`;
                     debugInfo += `  - BOL: "${customer.bol}"\n`;
+                    debugInfo += `  - Current ETA: "${customer.eta}" → displays as: ${formatDate(customer.eta)}\n`;
                     debugInfo += `  - Task 1 Status: ${customer.tasks[1]}\n`;
                     debugInfo += `  - Task 2 Status: ${customer.tasks[2]}\n`;
                     debugInfo += `  - Task 3 Status: ${customer.tasks[3]}\n`;
                 }
                 
+                debugInfo += '\n🔧 DATE CORRECTION:\n';
+                debugInfo += 'If dates are showing incorrectly (e.g., July 6 instead of June 7),\n';
+                debugInfo += 'this usually means Google Sheets interpreted DD/MM as MM/DD.\n\n';
+                debugInfo += 'Would you like to attempt automatic date correction?\n';
+                debugInfo += '(This will try to swap month/day for dates where both values are ≤12)';
+                
                 console.log('🔍 DEBUG INFO:', debugInfo);
-                alert(debugInfo);
+                
+                const userChoice = confirm(debugInfo + '\n\nClick OK to attempt date correction, Cancel to just view debug info.');
+                
+                if (userChoice) {
+                    attemptDateCorrection();
+                }
+                
             } catch (error) {
                 console.error('Debug error:', error);
                 alert('Debug error: ' + error.message);
