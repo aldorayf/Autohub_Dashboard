@@ -658,6 +658,44 @@
             { id: 20, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
         ];
 
+        // ADDED: Function to calculate date X days before ETA
+        function getDateXDaysBefore(etaDate, daysBefore) {
+            if (!etaDate) return null;
+            const eta = new Date(etaDate);
+            const targetDate = new Date(eta);
+            targetDate.setDate(eta.getDate() - daysBefore);
+            return targetDate.toISOString().split('T')[0];
+        }
+
+        // ADDED: Function to get task-specific description based on customer data
+        function getTaskDescription(taskId, customerData) {
+            const task = TASKS.find(t => t.id === taskId);
+            if (!task) return '';
+
+            switch (taskId) {
+                case 5: // AWIS Invoice to AutoHub
+                    const invoiceByDate = getDateXDaysBefore(customerData.eta, 7);
+                    return `${task.description}\nMust be sent by ${formatDate(invoiceByDate)}`;
+                
+                case 6: // NOA Received
+                    const requestByDate = getDateXDaysBefore(customerData.eta, 5);
+                    return `${task.description}\nRequest by ${formatDate(requestByDate)}`;
+                
+                case 13: // Request SSL/Terminal Release
+                    return `${task.description}\nVessel must have arrived prior to requesting`;
+                
+                case 15: // Release Notification
+                    if (customerData.inland === 'Y') {
+                        return "Release Notification to Transcar\nNotify Transcar of Cargo Release";
+                    } else {
+                        return "Release Notification to Customer\nNotify customer of cargo Release";
+                    }
+                
+                default:
+                    return task.description;
+            }
+        }
+
         // Global data storage
         let originalVesselsData = [];
         let vesselsData = [];
@@ -1272,6 +1310,10 @@
                 if (!task.customStates) {
                     displayStatus = status.replace(/-/g, ' ').toUpperCase();
                 }
+
+                // UPDATED: Use custom task description based on customer data
+                const taskDescription = getTaskDescription(taskId, customerData);
+                const formattedDescription = taskDescription.replace(/\n/g, '<br>');
                 
                 taskElement.innerHTML = `
                     <div class="task-header">
@@ -1279,7 +1321,7 @@
                         <div class="task-status status-${statusClass}">${displayStatus}</div>
                     </div>
                     <div class="task-name">${task.name}</div>
-                    <div class="task-description">${task.description}</div>
+                    <div class="task-description">${formattedDescription}</div>
                     ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
                 `;
                 
@@ -1720,9 +1762,8 @@
                                     <div class="customer-header">
                                         <div>
                                             <div class="customer-name">
-                                                <input type="text" value="${customer.name}" 
-                                                       onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'name', this.value)"
-                                                       style="border: none; background: transparent; font-size: 1.3rem; font-weight: bold; color: #2d3748; width: 100%; padding: 2px;">
+                                                <input type="text" value="${customer.name}" readonly
+                                                       style="border: none; background: #f7fafc; font-size: 1.3rem; font-weight: bold; color: #2d3748; width: 100%; padding: 2px; cursor: default;">
                                             </div>
                                             <div class="customer-details">
                                                 B#: <input type="text" value="${customer.bnumber || ''}" 
