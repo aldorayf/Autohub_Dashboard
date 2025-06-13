@@ -679,11 +679,11 @@
             return fieldNames[taskId] || 'unknown';
         }
 
-        // ADDED: Manual date correction for dates that were wrongly interpreted as MM/DD instead of DD/MM
+        // UPDATED: Manual date correction that preserves exact dates
         function correctWronglyInterpretedDate(wrongDate) {
             if (!wrongDate) return null;
             
-            // If the date looks like it was wrongly interpreted (e.g., July 6 instead of June 7)
+            // If the date looks like it was wrongly interpreted (e.g., 2025-07-06 instead of 2025-06-07)
             if (typeof wrongDate === 'string' && wrongDate.includes('-')) {
                 const parts = wrongDate.split('-');
                 if (parts.length === 3) {
@@ -698,7 +698,7 @@
                     if (monthNum <= 12 && dayNum <= 12 && monthNum !== dayNum) {
                         // Swap month and day to correct DD/MM -> MM/DD error
                         const correctedDate = `${year}-${day.padStart(2, '0')}-${month.padStart(2, '0')}`;
-                        console.log(`📅 Date correction: ${wrongDate} → ${correctedDate}`);
+                        console.log(`📅 Date correction: ${wrongDate} → ${correctedDate} (swapped month/day)`);
                         return correctedDate;
                     }
                 }
@@ -1043,18 +1043,28 @@
             }
         }
 
-        // FIXED: Date parsing function to handle both raw DD/MM/YYYY strings and already-converted Date objects
+        // FIXED: Date parsing function that preserves exact dates without timezone shifts
         function parseManifestDate(dateValue) {
             if (!dateValue) return null;
             
             console.log(`📅 Raw date input: ${dateValue} (type: ${typeof dateValue})`);
             
-            // If it's already a Date object or ISO string, we need to check if it was wrongly interpreted
-            if (dateValue instanceof Date || (typeof dateValue === 'string' && dateValue.includes('T'))) {
-                // This date was already converted by Google Sheets, likely with wrong interpretation
-                // We need to get the raw string value instead
-                console.log(`⚠️ Date already converted by Google Sheets: ${dateValue}`);
-                return dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : dateValue.split('T')[0];
+            // If it's already a Date object, extract the date parts without timezone conversion
+            if (dateValue instanceof Date) {
+                // Use getFullYear, getMonth, getDate to avoid timezone issues
+                const year = dateValue.getFullYear();
+                const month = (dateValue.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateValue.getDate().toString().padStart(2, '0');
+                const convertedDate = `${year}-${month}-${day}`;
+                console.log(`📅 Date object conversion: ${dateValue} → ${convertedDate} (preserved exact date)`);
+                return convertedDate;
+            }
+            
+            // If it's an ISO string, parse it carefully to avoid timezone shifts
+            if (typeof dateValue === 'string' && dateValue.includes('T')) {
+                const datePart = dateValue.split('T')[0];
+                console.log(`📅 ISO string conversion: ${dateValue} → ${datePart} (preserved exact date)`);
+                return datePart;
             }
             
             // Handle raw DD/MM/YYYY format string
@@ -1067,12 +1077,7 @@
                     
                     // Convert DD/MM/YYYY to YYYY-MM-DD
                     const convertedDate = `${year}-${month}-${day}`;
-                    console.log(`📅 Date conversion: ${dateValue} (DD/MM/YYYY) → ${convertedDate} (YYYY-MM-DD)`);
-                    
-                    // Verify the conversion
-                    const testDate = new Date(convertedDate);
-                    console.log(`📅 Verification: ${convertedDate} displays as ${testDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`);
-                    
+                    console.log(`📅 DD/MM/YYYY conversion: ${dateValue} → ${convertedDate} (preserved exact date)`);
                     return convertedDate;
                 }
             }
@@ -1082,8 +1087,11 @@
                 // Convert Excel serial date to JavaScript Date
                 const excelEpoch = new Date(1900, 0, 1);
                 const jsDate = new Date(excelEpoch.getTime() + (dateValue - 2) * 24 * 60 * 60 * 1000);
-                const convertedDate = jsDate.toISOString().split('T')[0];
-                console.log(`📅 Excel serial date conversion: ${dateValue} → ${convertedDate}`);
+                const year = jsDate.getFullYear();
+                const month = (jsDate.getMonth() + 1).toString().padStart(2, '0');
+                const day = jsDate.getDate().toString().padStart(2, '0');
+                const convertedDate = `${year}-${month}-${day}`;
+                console.log(`📅 Excel serial date conversion: ${dateValue} → ${convertedDate} (preserved exact date)`);
                 return convertedDate;
             }
             
@@ -1097,12 +1105,41 @@
         }
 
         function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'short', 
-                day: 'numeric' 
-            });
+            if (!dateString) return 'N/A';
+            
+            // Parse the YYYY-MM-DD format without timezone conversion
+            if (typeof dateString === 'string' && dateString.includes('-')) {
+                const parts = dateString.split('-');
+                if (parts.length === 3) {
+                    const year = parseInt(parts[0]);
+                    const month = parseInt(parts[1]) - 1; // Month is 0-indexed in JavaScript
+                    const day = parseInt(parts[2]);
+                    
+                    // Create date using local timezone to avoid shifts
+                    const date = new Date(year, month, day);
+                    const formatted = date.toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric' 
+                    });
+                    
+                    console.log(`📅 Format: ${dateString} → ${formatted}`);
+                    return formatted;
+                }
+            }
+            
+            // Fallback for other formats
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            } catch (error) {
+                console.error('Date formatting error:', error);
+                return dateString;
+            }
         }
 
         // FIXED: Get next tasks function to properly identify incomplete tasks
