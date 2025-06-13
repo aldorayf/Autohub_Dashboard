@@ -650,7 +650,7 @@
             { id: 12, name: "CBP Release", description: "Obtain customs release" },
             { id: 13, name: "Request SSL/Terminal Release", description: "Request steamship line and terminal release" },
             { id: 14, name: "SSL/Terminal Release Confirmed", description: "Confirm release from SSL and terminal" },
-            { id: 15, name: "Release Notification to Customer", description: "Notify customer of cargo release" },
+            { id: 15, name: "Release Notification to Customer or Transcar", description: "Notify customer of cargo release" },
             { id: 16, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
             { id: 17, name: "Mark Customs Clear in Bitrix", description: "Update customs clearance status" },
             { id: 18, name: "Dispatch Memo to TCAS", description: "Send dispatch instructions to transport company" },
@@ -941,6 +941,35 @@
                 }
             } catch (err) {
                 console.error('❌ Customer save error:', err);
+                return false;
+            }
+        }
+
+        // ADDED: Save ETA field function
+        async function saveETAToGoogleAppsScript(customerName, newETA) {
+            try {
+                const params = new URLSearchParams({
+                    action: 'updateManifestETA',
+                    customerName,
+                    newETA
+                });
+
+                const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    console.log(`✅ Saved ETA for ${customerName}`);
+                    return true;
+                } else {
+                    console.error('❌ ETA save failed:', result.error);
+                    return false;
+                }
+            } catch (err) {
+                console.error('❌ ETA save error:', err);
                 return false;
             }
         }
@@ -1334,6 +1363,9 @@
                         const oldETA = customerData.eta;
                         customerData.eta = newETA;
                         console.log(`✅ Updated ETA for ${customerName} from ${oldETA} to ${newETA}`);
+                        
+                        // Save to Google Sheets
+                        saveETAToGoogleAppsScript(customerName, newETA);
                         
                         setTimeout(() => {
                             renderDashboard();
