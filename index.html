@@ -678,7 +678,7 @@
             return fieldNames[taskId] || 'unknown';
         }
 
-        // FIXED: Enhanced data transformation with correct BOL field mapping
+        // FIXED: Enhanced data transformation with correct BOL field mapping and better date debugging
         function transformManifestData(manifestData, customerDetails, taskStatus) {
             console.log('🔄 Transforming data...');
             console.log('📊 Manifest rows:', manifestData.length);
@@ -687,6 +687,13 @@
             
             if (manifestData.length > 0) {
                 console.log('📋 Manifest fields:', Object.keys(manifestData[0]));
+                // Debug the first row dates
+                const firstRow = manifestData[0];
+                console.log('📅 First row raw dates:', {
+                    ETA: firstRow.ETA,
+                    ETS: firstRow.ETS,
+                    Customer: firstRow.Customer
+                });
             }
             if (taskStatus.length > 0) {
                 console.log('📋 Task Status fields:', Object.keys(taskStatus[0]));
@@ -711,20 +718,15 @@
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
                 let blNumber = '';
-              // Try exact field names from your sheets
-                if (row['BL No.']) {
-                    blNumber = row['BL No.'];
-                    console.log(`✅ Found BL in 'BL No.' field: ${blNumber}`);
-                } else if (row['House No.']) {
+                if (row['House No.']) {
                     blNumber = row['House No.'];
-                    console.log(`✅ Found BL in 'House No.' field: ${blNumber}`);
+                    console.log(`✅ Found BOL from 'House No.' field: ${blNumber}`);
                 } else {
-                    // Fallback to other possible field names
-                    const possibleBLFields = ['BL_No', 'BL No', 'BOL', 'bol', 'House No.'];
+                    const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
                     for (const field of possibleBLFields) {
                         if (row[field]) {
                             blNumber = row[field];
-                            console.log(`✅ Found BL in '${field}' field: ${blNumber}`);
+                            console.log(`✅ Found BOL in '${field}' field: ${blNumber}`);
                             break;
                         }
                     }
@@ -743,7 +745,7 @@
                     if (blNumber && t['BL_No']) {
                         const match = String(t['BL_No']).trim() === String(blNumber).trim();
                         if (match) {
-                           console.log(`✅ Task data matched for ${row.Customer}, BL: ${blNumber}`);
+                            console.log(`✅ Task data matched for ${row.Customer}, House No./BL_No: ${blNumber}`);
                         }
                         return match;
                     }
@@ -754,6 +756,10 @@
                 const hasTaskData = Object.keys(taskData).length > 0;
                 console.log(`🔍 Customer: ${row.Customer}, BL: ${blNumber}, Task data found: ${hasTaskData}`);
                 
+                // Parse and debug the customer ETA
+                const parsedETA = parseManifestDate(row.ETA);
+                console.log(`📅 Customer ${row.Customer} ETA: ${row.ETA} → ${parsedETA} → displays as: ${formatDate(parsedETA)}`);
+                
                 const customer = {
                     name: row.Customer,
                     bnumber: `B${row['Ref No.']}`,
@@ -761,7 +767,7 @@
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
                     pod: row.Port,
-                    eta: parseManifestDate(row.ETA),
+                    eta: parsedETA,
                     inland: customerDetail.Inland || 'UNKNOWN',
                     tasks: {},
                     taskDates: {}
@@ -981,7 +987,7 @@
             if (!dateString) return null;
             
             // Handle DD/MM/YYYY format from Google Sheets
-            const parts = dateString.split('/');
+            const parts = String(dateString).split('/');
             if (parts.length === 3) {
                 const day = parts[0].padStart(2, '0');
                 const month = parts[1].padStart(2, '0');
@@ -989,7 +995,12 @@
                 
                 // Convert DD/MM/YYYY to YYYY-MM-DD
                 const convertedDate = `${year}-${month}-${day}`;
-                console.log(`📅 Date conversion: ${dateString} → ${convertedDate}`);
+                console.log(`📅 Date conversion: ${dateString} (DD/MM/YYYY) → ${convertedDate} (YYYY-MM-DD)`);
+                
+                // Verify the conversion
+                const testDate = new Date(convertedDate);
+                console.log(`📅 Verification: ${convertedDate} displays as ${testDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`);
+                
                 return convertedDate;
             }
             return dateString;
@@ -1171,42 +1182,93 @@
             });
         }
 
-        // ADDED: Function to update ETA
+        // FIXED: Function to update ETA
         function updateETA(vessel, bnumber, newETA) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
-                if (customerData) {
-                    customerData.eta = newETA;
-                    console.log(`Updated ETA for ${bnumber} to ${newETA}`);
-                    
-                    // Update the display
-                    renderDashboard();
-                    updateStatsOnly();
+            try {
+                const vesselData = vesselsData.find(v => v.vessel === vessel);
+                if (vesselData) {
+                    const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                    if (customerData) {
+                        const oldETA = customerData.eta;
+                        customerData.eta = newETA;
+                        console.log(`✅ Updated ETA for ${bnumber} from ${oldETA} to ${newETA}`);
+                        
+                        // Re-render the dashboard to show the updated date
+                        setTimeout(() => {
+                            renderDashboard();
+                            updateStatsOnly();
+                        }, 100);
+                    }
                 }
+            } catch (error) {
+                console.error('❌ Error updating ETA:', error);
             }
         }
 
-        // ADDED: Function to make ETA editable
+        // FIXED: Function to make ETA editable
         function makeETAEditable(element, vessel, bnumber, currentETA) {
-            const input = document.createElement('input');
-            input.type = 'date';
-            input.className = 'eta-input';
-            input.value = currentETA;
-            input.onblur = () => {
-                if (input.value !== currentETA) {
-                    updateETA(vessel, bnumber, input.value);
-                }
-            };
-            input.onkeypress = (e) => {
-                if (e.key === 'Enter') {
-                    input.blur();
-                }
-            };
+            // Prevent event bubbling
+            event.stopPropagation();
             
-            element.innerHTML = '';
-            element.appendChild(input);
-            input.focus();
+            // Store original content
+            const originalContent = element.innerHTML;
+            
+            try {
+                const input = document.createElement('input');
+                input.type = 'date';
+                input.className = 'eta-input';
+                input.value = currentETA;
+                input.style.cssText = `
+                    background: rgba(255,255,255,0.9);
+                    border: 2px solid white;
+                    color: #2d3748;
+                    font-weight: bold;
+                    font-size: 0.9rem;
+                    text-align: center;
+                    width: 140px;
+                    padding: 4px;
+                    border-radius: 4px;
+                `;
+                
+                const saveAndRestore = () => {
+                    try {
+                        if (input.value && input.value !== currentETA) {
+                            updateETA(vessel, bnumber, input.value);
+                        } else {
+                            // Restore original content if no change
+                            element.innerHTML = originalContent;
+                        }
+                    } catch (error) {
+                        console.error('Error saving ETA:', error);
+                        element.innerHTML = originalContent;
+                    }
+                };
+                
+                input.onblur = saveAndRestore;
+                input.onkeypress = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        input.blur();
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        element.innerHTML = originalContent;
+                    }
+                };
+                
+                element.innerHTML = '';
+                element.appendChild(input);
+                
+                // Focus after a short delay to ensure it's rendered
+                setTimeout(() => {
+                    input.focus();
+                    input.select();
+                }, 10);
+                
+            } catch (error) {
+                console.error('Error creating ETA editor:', error);
+                element.innerHTML = originalContent;
+            }
         }
 
         // Filtering and rendering functions
@@ -1544,7 +1606,7 @@
                                                          rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
-                                        <div class="eta-badge" onclick="makeETAEditable(this, '${vessel.vessel}', '${customer.bnumber}', '${customer.eta}')">
+                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.bnumber}', '${customer.eta}')">
                                             ETA: ${formatDate(customer.eta)}
                                         </div>
                                         <div class="port-badge">${customer.pod}</div>
@@ -1598,7 +1660,63 @@
             alert('Export functionality would be implemented here');
         }
 
-       
+        // Debug function to show field names
+        async function debugFieldNames() {
+            if (!rawGoogleSheetsData) {
+                alert('No raw data available. Please click "Import Fresh Data" first.');
+                return;
+            }
+            
+            try {
+                let debugInfo = '🔍 DEBUG: Google Sheets Field Names\n\n';
+                
+                debugInfo += '🔗 FIELD MAPPING:\n';
+                debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
+                debugInfo += '  - Task_Status "BL_No" → Matches House No. for task updates\n\n';
+                
+                if (rawGoogleSheetsData.manifestData && rawGoogleSheetsData.manifestData.length > 0) {
+                    debugInfo += '📊 MANIFEST_DATA Fields:\n';
+                    Object.keys(rawGoogleSheetsData.manifestData[0]).forEach(field => {
+                        debugInfo += `  - "${field}"\n`;
+                    });
+                    
+                    const sampleRow = rawGoogleSheetsData.manifestData[0];
+                    debugInfo += '\n📊 Sample Manifest Row (BOL Mapping):\n';
+                    if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}" ← THIS goes to Dashboard BOL field\n`;
+                    if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}" (different field)\n`;
+                    debugInfo += `  - Customer: "${sampleRow.Customer}"\n`;
+                }
+                
+                if (rawGoogleSheetsData.taskData && rawGoogleSheetsData.taskData.length > 0) {
+                    debugInfo += '\n📋 TASK_STATUS Fields:\n';
+                    Object.keys(rawGoogleSheetsData.taskData[0]).forEach(field => {
+                        debugInfo += `  - "${field}"\n`;
+                    });
+                    
+                    const sampleTaskRow = rawGoogleSheetsData.taskData[0];
+                    debugInfo += '\n📋 Sample Task Row (Matching):\n';
+                    if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}" ← Should match House No. from Manifest\n`;
+                    debugInfo += `  - Customer: "${sampleTaskRow.Customer}"\n`;
+                    if (sampleTaskRow.isf_transmit) debugInfo += `  - isf_transmit: "${sampleTaskRow.isf_transmit}"\n`;
+                }
+                
+                debugInfo += '\n📝 Transformed Customer Data:\n';
+                if (vesselsData.length > 0 && vesselsData[0].customers && vesselsData[0].customers.length > 0) {
+                    const customer = vesselsData[0].customers[0];
+                    debugInfo += `  - Name: "${customer.name}"\n`;
+                    debugInfo += `  - BOL: "${customer.bol}"\n`;
+                    debugInfo += `  - Task 1 Status: ${customer.tasks[1]}\n`;
+                    debugInfo += `  - Task 2 Status: ${customer.tasks[2]}\n`;
+                    debugInfo += `  - Task 3 Status: ${customer.tasks[3]}\n`;
+                }
+                
+                console.log('🔍 DEBUG INFO:', debugInfo);
+                alert(debugInfo);
+            } catch (error) {
+                console.error('Debug error:', error);
+                alert('Debug error: ' + error.message);
+            }
+        }
 
         // FIXED: Initialize dashboard
         document.addEventListener('DOMContentLoaded', async () => {
