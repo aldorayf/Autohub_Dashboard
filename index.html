@@ -764,9 +764,25 @@
                 
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
+                // FIXED: Ensure BOL is always populated from House No.
                 let blNumber = '';
                 if (row['House No.']) {
                     blNumber = row['House No.'];
+                    console.log(`✅ Found BOL from 'House No.' field: ${blNumber} for customer ${row.Customer}`);
+                } else {
+                    // Try alternative BOL fields
+                    const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
+                    for (const field of possibleBLFields) {
+                        if (row[field]) {
+                            blNumber = row[field];
+                            console.log(`✅ Found BOL in '${field}' field: ${blNumber} for customer ${row.Customer}`);
+                            break;
+                        }
+                    }
+                }
+                
+                if (!blNumber) {
+                    console.warn(`⚠️ No BOL found for customer: ${row.Customer}`);
                 }
                 
                 const taskData = taskStatus.find(t => {
@@ -789,8 +805,8 @@
                 
                 const customer = {
                     name: row.Customer,
-                    bnumber: customerDetail.BNumber || '', // Now supporting B# from Customer_Details
-                    bol: blNumber,
+                    bnumber: customerDetail.BNumber || '', // B# from Customer_Details
+                    bol: blNumber, // FIXED: This should always have a value
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
                     pod: row.Port,
@@ -994,13 +1010,12 @@
             }
         }
 
-        // IMPROVED: Enhanced task update with better race condition handling
-        async function updateTaskStatus(vessel, customer, taskId, newStatus) {
+        // FIXED: Task update using customer index instead of B#
+        async function updateTaskStatusByIndex(vessel, customerIndex, taskId, newStatus) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (!vesselData) return;
+            if (!vesselData || !vesselData.customers[customerIndex]) return;
             
-            const customerData = vesselData.customers.find(c => c.bnumber === customer);
-            if (!customerData) return;
+            const customerData = vesselData.customers[customerIndex];
             
             // Update local data immediately for UI responsiveness
             customerData.tasks[taskId] = newStatus;
@@ -1014,25 +1029,28 @@
             }
             
             // Refresh UI immediately
-            const customerId = `${vessel}|${customer}`;
-            refreshCustomerTasks(customerId);
+            const customerId = `${vessel}|${customerIndex}|${customerData.name}`;
+            refreshCustomerTasksByIndex(vessel, customerIndex);
             updateStatsOnly();
             
             // Save to Google Apps Script (async with race condition prevention)
             await saveTaskToGoogleAppsScript(customerData.name, customerData.bol, taskId, newStatus);
         }
 
-        function refreshCustomerTasks(customerId) {
-            const [vessel, customer] = customerId.split('|');
+        // FIXED: Refresh customer tasks using index
+        function refreshCustomerTasksByIndex(vessel, customerIndex) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            const customerData = vesselData.customers.find(c => c.bnumber === customer);
+            if (!vesselData || !vesselData.customers[customerIndex]) return;
+            
+            const customerData = vesselData.customers[customerIndex];
+            const customerId = `${vessel}|${customerIndex}|${customerData.name}`;
             
             const tasksContainer = document.getElementById(`tasks-${customerId}`);
             if (tasksContainer) {
                 const showAllBtn = tasksContainer.closest('.customer-card').querySelector('.show-all-btn');
                 const showingAll = showAllBtn && showAllBtn.textContent.includes('Show Less');
                 
-                renderCustomerTasks(tasksContainer, customerId, showingAll);
+                renderCustomerTasksByIndex(tasksContainer, vessel, customerIndex, showingAll);
                 
                 const tasksHeader = tasksContainer.closest('.customer-card').querySelector('.tasks-title');
                 const nextTasks = getNextTasks(customerData.tasks, 3);
@@ -1043,6 +1061,62 @@
                     tasksHeader.style.color = '#38a169';
                 }
             }
+        }
+
+        // FIXED: Render customer tasks using index
+        function renderCustomerTasksByIndex(container, vessel, customerIndex, showAll = false) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (!vesselData || !vesselData.customers[customerIndex]) return;
+            
+            const customerData = vesselData.customers[customerIndex];
+            
+            const tasksToShow = showAll ? 
+                getAllTasks(customerData.tasks) : 
+                getNextTasks(customerData.tasks, 3);
+            
+            container.innerHTML = '';
+            
+            tasksToShow.forEach(taskId => {
+                if (!shouldShowTask(taskId, customerData)) return;
+                
+                const task = TASKS.find(t => t.id === taskId);
+                const status = customerData.tasks[taskId] || 'incomplete';
+                const taskDate = customerData.taskDates && customerData.taskDates[taskId] ? 
+                    formatDate(customerData.taskDates[taskId]) : '';
+                
+                const taskElement = document.createElement('div');
+                
+                let cssStatus = status;
+                if (task && task.customStates) {
+                    cssStatus = status.replace(/\s+/g, '-').toLowerCase();
+                } else {
+                    cssStatus = String(status).toLowerCase().replace(/\s+/g, '-');
+                }
+                
+                taskElement.className = `task-item ${cssStatus}`;
+                taskElement.onclick = () => {
+                    const newStatus = cycleTaskStatus(status, taskId);
+                    updateTaskStatusByIndex(vessel, customerIndex, taskId, newStatus);
+                };
+                
+                let displayStatus = status;
+                let statusClass = cssStatus;
+                if (!task.customStates) {
+                    displayStatus = status.replace(/-/g, ' ').toUpperCase();
+                }
+                
+                taskElement.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-number">${taskId}</div>
+                        <div class="task-status status-${statusClass}">${displayStatus}</div>
+                    </div>
+                    <div class="task-name">${task.name}</div>
+                    <div class="task-description">${task.description}</div>
+                    ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
+                `;
+                
+                container.appendChild(taskElement);
+            });
         }
 
         function formatDate(dateString) {
@@ -1179,82 +1253,32 @@
             return true;
         }
 
-        function renderCustomerTasks(container, customerId, showAll = false) {
-            const [vessel, customer] = customerId.split('|');
+        // FIXED: Customer field update using index instead of B# for reliable identification
+        function updateCustomerFieldByIndex(vessel, customerIndex, field, value) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            const customerData = vesselData.customers.find(c => c.bnumber === customer);
-            
-            const tasksToShow = showAll ? 
-                getAllTasks(customerData.tasks) : 
-                getNextTasks(customerData.tasks, 3);
-            
-            container.innerHTML = '';
-            
-            tasksToShow.forEach(taskId => {
-                if (!shouldShowTask(taskId, customerData)) return;
+            if (vesselData && vesselData.customers[customerIndex]) {
+                const customerData = vesselData.customers[customerIndex];
+                const oldValue = customerData[field];
+                customerData[field] = value;
+                console.log(`Updated ${field} for ${customerData.name} from "${oldValue}" to "${value}"`);
                 
-                const task = TASKS.find(t => t.id === taskId);
-                const status = customerData.tasks[taskId] || 'incomplete';
-                const taskDate = customerData.taskDates && customerData.taskDates[taskId] ? 
-                    formatDate(customerData.taskDates[taskId]) : '';
-                
-                const taskElement = document.createElement('div');
-                
-                let cssStatus = status;
-                if (task && task.customStates) {
-                    cssStatus = status.replace(/\s+/g, '-').toLowerCase();
-                } else {
-                    cssStatus = String(status).toLowerCase().replace(/\s+/g, '-');
+                // Save to Google Sheets for notes, email, inland, and bnumber
+                if (field === 'notes' || field === 'email' || field === 'inland' || field === 'bnumber') {
+                    saveCustomerDetail(customerData.name, field, value);
                 }
                 
-                taskElement.className = `task-item ${cssStatus}`;
-                taskElement.onclick = () => {
-                    const newStatus = cycleTaskStatus(status, taskId);
-                    updateTaskStatus(vessel, customer, taskId, newStatus);
-                };
-                
-                let displayStatus = status;
-                let statusClass = cssStatus;
-                if (!task.customStates) {
-                    displayStatus = status.replace(/-/g, ' ').toUpperCase();
+                // If updating B#, refresh the display
+                if (field === 'bnumber') {
+                    setTimeout(() => {
+                        renderDashboard();
+                        updateStatsOnly();
+                    }, 100);
                 }
-                
-                taskElement.innerHTML = `
-                    <div class="task-header">
-                        <div class="task-number">${taskId}</div>
-                        <div class="task-status status-${statusClass}">${displayStatus}</div>
-                    </div>
-                    <div class="task-name">${task.name}</div>
-                    <div class="task-description">${task.description}</div>
-                    ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
-                `;
-                
-                container.appendChild(taskElement);
-            });
-        }
-
-        function updateETA(vessel, bnumber, newETA) {
-            try {
-                const vesselData = vesselsData.find(v => v.vessel === vessel);
-                if (vesselData) {
-                    const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
-                    if (customerData) {
-                        const oldETA = customerData.eta;
-                        customerData.eta = newETA;
-                        console.log(`✅ Updated ETA for ${bnumber} from ${oldETA} to ${newETA}`);
-                        
-                        setTimeout(() => {
-                            renderDashboard();
-                            updateStatsOnly();
-                        }, 100);
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error updating ETA:', error);
             }
         }
 
-        function makeETAEditable(element, vessel, bnumber, currentETA) {
+        // FIXED: ETA update using index
+        function makeETAEditableByIndex(element, vessel, customerIndex, currentETA) {
             event.stopPropagation();
             
             const originalContent = element.innerHTML;
@@ -1279,7 +1303,7 @@
                 const saveAndRestore = () => {
                     try {
                         if (input.value && input.value !== currentETA) {
-                            updateETA(vessel, bnumber, input.value);
+                            updateETAByIndex(vessel, customerIndex, input.value);
                         } else {
                             element.innerHTML = originalContent;
                         }
@@ -1312,6 +1336,50 @@
             } catch (error) {
                 console.error('Error creating ETA editor:', error);
                 element.innerHTML = originalContent;
+            }
+        }
+
+        // FIXED: ETA update using index
+        function updateETAByIndex(vessel, customerIndex, newETA) {
+            try {
+                const vesselData = vesselsData.find(v => v.vessel === vessel);
+                if (vesselData && vesselData.customers[customerIndex]) {
+                    const customerData = vesselData.customers[customerIndex];
+                    const oldETA = customerData.eta;
+                    customerData.eta = newETA;
+                    console.log(`✅ Updated ETA for ${customerData.name} from ${oldETA} to ${newETA}`);
+                    
+                    setTimeout(() => {
+                        renderDashboard();
+                        updateStatsOnly();
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('❌ Error updating ETA:', error);
+            }
+        }
+
+        // FIXED: Inland status toggle using index
+        function toggleInlandStatusByIndex(vessel, customerIndex) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData && vesselData.customers[customerIndex]) {
+                const customerData = vesselData.customers[customerIndex];
+                customerData.inland = cycleInlandStatus(customerData.inland);
+                
+                // Save to Google Sheets
+                saveCustomerDetail(customerData.name, 'inland', customerData.inland);
+                
+                // Update the UI immediately
+                const customerCards = document.querySelectorAll('.customer-card');
+                customerCards.forEach(card => {
+                    const inlandBadge = card.querySelector('.inland-badge');
+                    if (inlandBadge && card.querySelector(`input[value="${customerData.name}"]`)) {
+                        inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
+                        inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
+                    }
+                });
+                
+                updateStatsOnly();
             }
         }
 
@@ -1573,57 +1641,15 @@
             const button = customerCard.querySelector('.show-all-btn');
             const isShowingAll = button.textContent.includes('Show Less');
             
+            // FIXED: Parse the new customerId format (vessel|index|name)
+            const [vessel, customerIndex, customerName] = customerId.split('|');
+            
             if (isShowingAll) {
                 button.textContent = '📋 Show All Tasks';
-                renderCustomerTasks(container, customerId, false);
+                renderCustomerTasksByIndex(container, vessel, parseInt(customerIndex), false);
             } else {
                 button.textContent = '📋 Show Less';
-                renderCustomerTasks(container, customerId, true);
-            }
-        }
-
-        // UPDATED: Customer field update with Google Sheets save
-        function updateCustomerField(vessel, bnumber, field, value) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
-                if (customerData) {
-                    customerData[field] = value;
-                    console.log(`Updated ${field} for ${bnumber} to ${value}`);
-                    
-                    // Save to Google Sheets for notes, email, and bnumber
-                    if (field === 'notes' || field === 'email' || field === 'bnumber') {
-                        saveCustomerDetail(customerData.name, field, value);
-                    }
-                }
-            }
-        }
-
-        // UPDATED: Inland status toggle with Google Sheets save
-        function toggleInlandStatus(vessel, bnumber) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
-                if (customerData) {
-                    customerData.inland = cycleInlandStatus(customerData.inland);
-                    
-                    // Save to Google Sheets
-                    saveCustomerDetail(customerData.name, 'inland', customerData.inland);
-                    
-                    const customerCards = document.querySelectorAll('.customer-card');
-                    customerCards.forEach(card => {
-                        const bnumberInput = card.querySelector('input[value="' + bnumber + '"]');
-                        if (bnumberInput) {
-                            const inlandBadge = card.querySelector('.inland-badge');
-                            if (inlandBadge) {
-                                inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
-                                inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
-                            }
-                        }
-                    });
-                    
-                    updateStatsOnly();
-                }
+                renderCustomerTasksByIndex(container, vessel, parseInt(customerIndex), true);
             }
         }
 
@@ -1666,8 +1692,9 @@
                         </div>
                     </div>
                     <div class="vessel-content">
-                        ${sortedCustomers.map(customer => {
-                            const customerId = `${vessel.vessel}|${customer.bnumber}`;
+                        ${sortedCustomers.map((customer, customerIndex) => {
+                            // FIXED: Use customer index + name for reliable identification instead of B#
+                            const customerId = `${vessel.vessel}|${customerIndex}|${customer.name}`;
                             const nextTasks = getNextTasks(customer.tasks, 3);
                             
                             return `
@@ -1676,38 +1703,38 @@
                                         <div>
                                             <div class="customer-name">
                                                 <input type="text" value="${customer.name}" 
-                                                       onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'name', this.value)"
+                                                       onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'name', this.value)"
                                                        style="border: none; background: transparent; font-size: 1.3rem; font-weight: bold; color: #2d3748; width: 100%; padding: 2px;">
                                             </div>
                                             <div class="customer-details">
                                                 B#: <input type="text" value="${customer.bnumber || ''}" 
-                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bnumber', this.value)"
+                                                          onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'bnumber', this.value)"
                                                           style="border: none; background: transparent; color: #4a5568; padding: 2px;"
                                                           placeholder="Enter B#">
                                                 | BOL: <input type="text" value="${customer.bol || ''}" 
-                                                             onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'bol', this.value)"
+                                                             onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'bol', this.value)"
                                                              style="border: none; background: transparent; color: #4a5568; padding: 2px;">
                                             </div>
                                             <div class="customer-details">
                                                 Email: <input type="email" value="${customer.email || ''}" 
-                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'email', this.value)"
+                                                              onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'email', this.value)"
                                                               style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
                                                               placeholder="Enter email address">
                                             </div>
                                             <div class="customer-details">
                                                 Notes: 
                                                 <textarea class="customer-notes" 
-                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.bnumber}', 'notes', this.value)"
+                                                         onchange="updateCustomerFieldByIndex('${vessel.vessel}', ${customerIndex}, 'notes', this.value)"
                                                          placeholder="Add customer notes..."
                                                          rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
-                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.bnumber}', '${customer.eta}')">
+                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditableByIndex(this, '${vessel.vessel}', ${customerIndex}, '${customer.eta}')">
                                             ETA: ${formatDate(customer.eta)}
                                         </div>
                                         <div class="port-badge">${customer.pod}</div>
                                         <div class="inland-badge ${getInlandClass(customer.inland)}" 
-                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.bnumber}')"
+                                             onclick="toggleInlandStatusByIndex('${vessel.vessel}', ${customerIndex})"
                                              style="cursor: pointer;">
                                             Inland: ${getInlandDisplay(customer.inland)}
                                         </div>
@@ -1741,11 +1768,11 @@
                     collapseIcon.textContent = '▶';
                 }
                 
-                // Render tasks
-                sortedCustomers.forEach(customer => {
-                    const customerId = `${vessel.vessel}|${customer.bnumber}`;
+                // Render tasks using new index-based system
+                sortedCustomers.forEach((customer, customerIndex) => {
+                    const customerId = `${vessel.vessel}|${customerIndex}|${customer.name}`;
                     const tasksContainer = document.getElementById(`tasks-${customerId}`);
-                    renderCustomerTasks(tasksContainer, customerId, false);
+                    renderCustomerTasksByIndex(tasksContainer, vessel.vessel, customerIndex, false);
                 });
             });
             
@@ -1754,6 +1781,70 @@
 
         function exportData() {
             alert('Export functionality would be implemented here');
+        }
+
+        // LEGACY FUNCTIONS - KEPT FOR COMPATIBILITY
+        function updateCustomerField(vessel, bnumber, field, value) {
+            console.warn('Legacy updateCustomerField called - this should use index-based functions');
+            // Try to find customer by name or bnumber and redirect to index-based function
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerIndex = vesselData.customers.findIndex(c => 
+                    c.bnumber === bnumber || c.name === bnumber
+                );
+                if (customerIndex !== -1) {
+                    updateCustomerFieldByIndex(vessel, customerIndex, field, value);
+                }
+            }
+        }
+
+        function updateETA(vessel, bnumber, newETA) {
+            console.warn('Legacy updateETA called - redirecting to index-based function');
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerIndex = vesselData.customers.findIndex(c => 
+                    c.bnumber === bnumber || c.name === bnumber
+                );
+                if (customerIndex !== -1) {
+                    updateETAByIndex(vessel, customerIndex, newETA);
+                }
+            }
+        }
+
+        function makeETAEditable(element, vessel, bnumber, currentETA) {
+            console.warn('Legacy makeETAEditable called - redirecting to index-based function');
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerIndex = vesselData.customers.findIndex(c => 
+                    c.bnumber === bnumber || c.name === bnumber
+                );
+                if (customerIndex !== -1) {
+                    makeETAEditableByIndex(element, vessel, customerIndex, currentETA);
+                }
+            }
+        }
+
+        function toggleInlandStatus(vessel, bnumber) {
+            console.warn('Legacy toggleInlandStatus called - redirecting to index-based function');
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerIndex = vesselData.customers.findIndex(c => 
+                    c.bnumber === bnumber || c.name === bnumber
+                );
+                if (customerIndex !== -1) {
+                    toggleInlandStatusByIndex(vessel, customerIndex);
+                }
+            }
+        }
+
+        // LEGACY FUNCTIONS - REMOVED (now using index-based functions)
+        // These functions are kept for compatibility but redirect to new index-based functions
+        function renderCustomerTasks(container, customerId, showAll = false) {
+            console.warn('Legacy renderCustomerTasks called - redirecting to index-based function');
+            const [vessel, customerIndex, customerName] = customerId.split('|');
+            if (customerIndex && !isNaN(customerIndex)) {
+                renderCustomerTasksByIndex(container, vessel, parseInt(customerIndex), showAll);
+            }
         }
 
         // Initialize dashboard
