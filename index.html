@@ -1,6 +1,4 @@
-debugInfo += '\n🔗 FIELD MAPPING:\n';
-                debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
-                debugInfo += '  - Task_Status "BL_No" → Matches House No. for task updates\n\n';<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -179,14 +177,15 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
 
         .vessel-content {
             padding: 2rem;
-            max-height: 2000px;
-            overflow: hidden;
+            max-height: none; /* FIXED: Remove height restriction */
+            overflow: visible; /* FIXED: Allow content to be fully visible */
             transition: all 0.5s ease;
         }
 
         .vessel-content.collapsed {
             max-height: 0;
             padding: 0 2rem;
+            overflow: hidden;
         }
 
         .customer-card {
@@ -252,6 +251,13 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             font-size: 0.9rem;
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer; /* ADDED: Make ETA clickable */
+            transition: all 0.3s ease;
+        }
+
+        .eta-badge:hover {
+            background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+            transform: translateY(-1px);
         }
 
         .port-badge {
@@ -462,6 +468,24 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             display: none;
         }
 
+        /* ADDED: Date input styling */
+        .eta-input {
+            background: transparent;
+            border: none;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+            width: 100%;
+            padding: 0;
+        }
+
+        .eta-input:focus {
+            outline: none;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 0 1rem;
@@ -624,7 +648,8 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
         let originalVesselsData = [];
         let vesselsData = [];
         let vesselCollapsedStates = {};
-        let rawGoogleSheetsData = null; // Store raw data for debugging
+        let rawGoogleSheetsData = null;
+        let customerTaskStates = {}; // ADDED: Track task display state per customer
 
         // Enhanced task field mapping
         function getTaskFieldName(taskId) {
@@ -660,7 +685,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             console.log('👥 Customer detail rows:', customerDetails.length);
             console.log('📋 Task status rows:', taskStatus.length);
             
-            // Debug: Check field names in first row
             if (manifestData.length > 0) {
                 console.log('📋 Manifest fields:', Object.keys(manifestData[0]));
             }
@@ -684,20 +708,13 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                 
                 const vessel = vesselsMap.get(vesselKey);
                 
-                // Find customer details
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
-                // FIXED: Correct BOL field mapping
-                // Manifest_Data sheet: "House No." → Dashboard BOL field
-                // Task_Status sheet: "BL_No" → for matching tasks
                 let blNumber = '';
-                
-                // PRIMARY: Look for "House No." field in Manifest_Data
                 if (row['House No.']) {
                     blNumber = row['House No.'];
                     console.log(`✅ Found BOL from 'House No.' field: ${blNumber}`);
                 } else {
-                    // Fallback to other possible field names
                     const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
                     for (const field of possibleBLFields) {
                         if (row[field]) {
@@ -712,15 +729,12 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                     console.warn(`⚠️ No BL number found for customer: ${row.Customer}`);
                 }
                 
-                // FIXED: Task status matching - Manifest "House No." matches Task_Status "BL_No"
                 const taskData = taskStatus.find(t => {
-                    // Customer name matching
                     const customerMatch = t.Customer === row.Customer || 
                                         String(t.Customer || '').trim().toLowerCase() === String(row.Customer || '').trim().toLowerCase();
                     
                     if (!customerMatch) return false;
                     
-                    // BOL matching: Manifest "House No." should match Task_Status "BL_No"
                     if (blNumber && t['BL_No']) {
                         const match = String(t['BL_No']).trim() === String(blNumber).trim();
                         if (match) {
@@ -729,18 +743,16 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                         return match;
                     }
                     
-                    // If no BOL number, still return false to ensure proper matching
                     return false;
                 }) || {};
                 
                 const hasTaskData = Object.keys(taskData).length > 0;
                 console.log(`🔍 Customer: ${row.Customer}, BL: ${blNumber}, Task data found: ${hasTaskData}`);
                 
-                // Create customer object
                 const customer = {
                     name: row.Customer,
                     bnumber: `B${row['Ref No.']}`,
-                    bol: blNumber, // FIXED: This should now have the correct BL number
+                    bol: blNumber,
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
                     pod: row.Port,
@@ -750,23 +762,19 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                     taskDates: {}
                 };
                 
-                // FIXED: Initialize tasks with current status from Google Sheets
+                // FIXED: Initialize tasks with proper status normalization
                 for (let i = 1; i <= 20; i++) {
                     const taskFieldName = getTaskFieldName(i);
                     
-                    // Try to find the task value in the taskData
                     let taskValue = null;
-                    
-                    // Direct field name match (most likely)
                     if (hasTaskData && taskData[taskFieldName] !== undefined && taskData[taskFieldName] !== '') {
                         taskValue = taskData[taskFieldName];
                         console.log(`✅ Found task ${i} (${taskFieldName}): ${taskValue} for ${row.Customer}`);
                     }
                     
-                    // Set task status - use found value or default
-                    customer.tasks[i] = taskValue || getDefaultTaskStatus(i);
+                    // FIXED: Normalize task status
+                    customer.tasks[i] = normalizeTaskStatus(taskValue, i);
                     
-                    // Add task date if available
                     const dateField = `${taskFieldName}_date`;
                     if (hasTaskData && taskData[dateField]) {
                         customer.taskDates[i] = taskData[dateField];
@@ -779,6 +787,24 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             const result = Array.from(vesselsMap.values());
             console.log('✅ Transformation complete:', result.length, 'vessels');
             return result;
+        }
+
+        // FIXED: Normalize task status to handle both UPPERCASE and lowercase
+        function normalizeTaskStatus(taskValue, taskId) {
+            if (!taskValue) return getDefaultTaskStatus(taskId);
+            
+            const task = TASKS.find(t => t.id === taskId);
+            if (task && task.customStates) {
+                // For custom states, keep them as-is
+                return taskValue;
+            } else {
+                // Normalize standard statuses
+                const normalizedValue = String(taskValue).toLowerCase();
+                if (normalizedValue === 'incomplete') return 'incomplete';
+                if (normalizedValue === 'in-progress') return 'in-progress';
+                if (normalizedValue === 'completed') return 'completed';
+                return 'incomplete'; // Default fallback
+            }
         }
 
         // FIXED: Save task function
@@ -814,7 +840,7 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             }
         }
 
-        // FIXED: Load data from Google Apps Script with better error handling
+        // FIXED: Load data from Google Apps Script
         async function loadFromGoogleAppsScript() {
             try {
                 console.log('🔄 Loading ALL current data from Google Apps Script...');
@@ -837,7 +863,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                 }
                 
                 if (data.manifestData && data.customerData && data.taskData) {
-                    // Store raw data for debugging
                     rawGoogleSheetsData = data;
                     
                     const transformedData = transformManifestData(data.manifestData, data.customerData, data.taskData);
@@ -853,14 +878,13 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             }
         }
 
-        // Refresh Filters - Only applies filters, no data loading
         function refreshFilters() {
             console.log('🔄 Refreshing filters (no data loading)...');
             renderDashboard();
             updateStatsOnly();
         }
 
-        // FIXED: Import Data - Loads ALL current data from Google Sheets
+        // FIXED: Import Data
         async function importData() {
             const dataSourceElement = document.getElementById('dataSource');
             
@@ -874,7 +898,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             try {
                 const sheetsData = await loadFromGoogleAppsScript();
                 if (sheetsData && sheetsData.length > 0) {
-                    // COMPLETELY REPLACE all data with current Google Sheets data
                     vesselsData = sheetsData;
                     originalVesselsData = JSON.parse(JSON.stringify(vesselsData));
                     
@@ -893,7 +916,7 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             }
         }
 
-        // Enhanced task update with immediate feedback
+        // FIXED: Enhanced task update with proper UI refresh
         function updateTaskStatus(vessel, customer, taskId, newStatus) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (!vesselData) return;
@@ -904,7 +927,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             // Update local data immediately
             customerData.tasks[taskId] = newStatus;
             
-            // Update task date
             if (!customerData.taskDates) {
                 customerData.taskDates = {};
             }
@@ -913,15 +935,28 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                 customerData.taskDates[taskId] = new Date().toISOString().split('T')[0];
             }
             
-            // Save to Google Apps Script (async, don't wait)
+            // Save to Google Apps Script (async)
             saveTaskToGoogleAppsScript(customerData.name, customerData.bol, taskId, newStatus);
             
-            // Update UI immediately
+            // FIXED: Refresh ONLY the specific customer's tasks
             const customerId = `${vessel}|${customer}`;
+            refreshCustomerTasks(customerId);
+            
+            updateStatsOnly();
+        }
+
+        // ADDED: Function to refresh specific customer's tasks
+        function refreshCustomerTasks(customerId) {
+            const [vessel, customer] = customerId.split('|');
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            const customerData = vesselData.customers.find(c => c.bnumber === customer);
+            
             const tasksContainer = document.getElementById(`tasks-${customerId}`);
             if (tasksContainer) {
                 const showAllBtn = tasksContainer.closest('.customer-card').querySelector('.show-all-btn');
                 const showingAll = showAllBtn && showAllBtn.textContent.includes('Show Less');
+                
+                // Maintain the current state (show all or show next 3)
                 renderCustomerTasks(tasksContainer, customerId, showingAll);
                 
                 // Update task count
@@ -934,19 +969,23 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                     tasksHeader.style.color = '#38a169';
                 }
             }
-            
-            updateStatsOnly();
         }
 
-        // Utility functions
+        // FIXED: Date parsing function to handle DD/MM/YYYY format
         function parseManifestDate(dateString) {
             if (!dateString) return null;
+            
+            // Handle DD/MM/YYYY format from Google Sheets
             const parts = dateString.split('/');
             if (parts.length === 3) {
-                const day = parts[0];
-                const month = parts[1];
+                const day = parts[0].padStart(2, '0');
+                const month = parts[1].padStart(2, '0');
                 const year = parts[2];
-                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                
+                // Convert DD/MM/YYYY to YYYY-MM-DD
+                const convertedDate = `${year}-${month}-${day}`;
+                console.log(`📅 Date conversion: ${dateString} → ${convertedDate}`);
+                return convertedDate;
             }
             return dateString;
         }
@@ -966,6 +1005,7 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             });
         }
 
+        // FIXED: Get next tasks function to properly identify incomplete tasks
         function getNextTasks(customerTasks, limit = 3) {
             const nextTasks = [];
             for (let i = 1; i <= TASKS.length; i++) {
@@ -974,8 +1014,10 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                 let isIncomplete = false;
                 
                 if (task && task.customStates) {
+                    // For custom states, check if it's the first state (incomplete)
                     isIncomplete = status === task.customStates[0];
                 } else {
+                    // For standard states, check if incomplete or in-progress
                     isIncomplete = status === 'incomplete' || status === 'in-progress';
                 }
                 
@@ -1013,6 +1055,7 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             return true;
         }
 
+        // FIXED: Cycle task status function
         function cycleTaskStatus(currentStatus, taskId) {
             const task = TASKS.find(t => t.id === taskId);
             
@@ -1022,7 +1065,9 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                 const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % states.length;
                 return states[nextIndex];
             } else {
-                switch (currentStatus) {
+                // FIXED: Handle both UPPERCASE and lowercase properly
+                const normalizedStatus = String(currentStatus).toLowerCase();
+                switch (normalizedStatus) {
                     case 'incomplete': return 'in-progress';
                     case 'in-progress': return 'completed';
                     case 'completed': return 'incomplete';
@@ -1065,7 +1110,7 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             return true;
         }
 
-        // Main rendering functions
+        // FIXED: Render customer tasks with proper status display
         function renderCustomerTasks(container, customerId, showAll = false) {
             const [vessel, customer] = customerId.split('|');
             const vesselData = vesselsData.find(v => v.vessel === vessel);
@@ -1086,16 +1131,25 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                     formatDate(customerData.taskDates[taskId]) : '';
                 
                 const taskElement = document.createElement('div');
-                taskElement.className = `task-item ${status.replace(' ', '-').toLowerCase()}`;
+                
+                // FIXED: Proper status normalization for CSS classes
+                let cssStatus = status;
+                if (task && task.customStates) {
+                    cssStatus = status.replace(/\s+/g, '-').toLowerCase();
+                } else {
+                    cssStatus = String(status).toLowerCase().replace(/\s+/g, '-');
+                }
+                
+                taskElement.className = `task-item ${cssStatus}`;
                 taskElement.onclick = () => {
                     const newStatus = cycleTaskStatus(status, taskId);
                     updateTaskStatus(vessel, customer, taskId, newStatus);
                 };
                 
                 let displayStatus = status;
-                let statusClass = status.replace(' ', '-').toLowerCase();
+                let statusClass = cssStatus;
                 if (!task.customStates) {
-                    displayStatus = status.replace('-', ' ').toUpperCase();
+                    displayStatus = status.replace(/-/g, ' ').toUpperCase();
                 }
                 
                 taskElement.innerHTML = `
@@ -1110,6 +1164,44 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                 
                 container.appendChild(taskElement);
             });
+        }
+
+        // ADDED: Function to update ETA
+        function updateETA(vessel, bnumber, newETA) {
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (vesselData) {
+                const customerData = vesselData.customers.find(c => c.bnumber === bnumber);
+                if (customerData) {
+                    customerData.eta = newETA;
+                    console.log(`Updated ETA for ${bnumber} to ${newETA}`);
+                    
+                    // Update the display
+                    renderDashboard();
+                    updateStatsOnly();
+                }
+            }
+        }
+
+        // ADDED: Function to make ETA editable
+        function makeETAEditable(element, vessel, bnumber, currentETA) {
+            const input = document.createElement('input');
+            input.type = 'date';
+            input.className = 'eta-input';
+            input.value = currentETA;
+            input.onblur = () => {
+                if (input.value !== currentETA) {
+                    updateETA(vessel, bnumber, input.value);
+                }
+            };
+            input.onkeypress = (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+            };
+            
+            element.innerHTML = '';
+            element.appendChild(input);
+            input.focus();
         }
 
         // Filtering and rendering functions
@@ -1447,7 +1539,9 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                                                          rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
-                                        <div class="eta-badge">ETA: ${formatDate(customer.eta)}</div>
+                                        <div class="eta-badge" onclick="makeETAEditable(this, '${vessel.vessel}', '${customer.bnumber}', '${customer.eta}')">
+                                            ETA: ${formatDate(customer.eta)}
+                                        </div>
                                         <div class="port-badge">${customer.pod}</div>
                                         <div class="inland-badge ${getInlandClass(customer.inland)}" 
                                              onclick="toggleInlandStatus('${vessel.vessel}', '${customer.bnumber}')"
@@ -1519,7 +1613,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                         debugInfo += `  - "${field}"\n`;
                     });
                     
-                    // Show sample BOL data - focusing on House No.
                     const sampleRow = rawGoogleSheetsData.manifestData[0];
                     debugInfo += '\n📊 Sample Manifest Row (BOL Mapping):\n';
                     if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}" ← THIS goes to Dashboard BOL field\n`;
@@ -1533,7 +1626,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
                         debugInfo += `  - "${field}"\n`;
                     });
                     
-                    // Show sample task data - focusing on BL_No matching
                     const sampleTaskRow = rawGoogleSheetsData.taskData[0];
                     debugInfo += '\n📋 Sample Task Row (Matching):\n';
                     if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}" ← Should match House No. from Manifest\n`;
@@ -1559,13 +1651,10 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             }
         }
 
-        // REMOVED: Sample data initialization - always load from Google Sheets
-        
-        // FIXED: Initialize dashboard - Always try to load current data from Google Sheets first
+        // FIXED: Initialize dashboard
         document.addEventListener('DOMContentLoaded', async () => {
             const dataSourceElement = document.getElementById('dataSource');
             
-            // Always try to load current data from Google Sheets on page load
             try {
                 dataSourceElement.textContent = '🔄 Loading current data from Google Sheets...';
                 
@@ -1581,7 +1670,6 @@ debugInfo += '\n🔗 FIELD MAPPING:\n';
             } catch (error) {
                 console.error('Auto-load error:', error);
                 dataSourceElement.textContent = '❌ Cannot connect to Google Sheets - Check configuration';
-                // Initialize with empty data instead of sample data
                 vesselsData = [];
                 originalVesselsData = [];
             }
