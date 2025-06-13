@@ -636,26 +636,27 @@
 
         // Task definitions
         const TASKS = [
-            { id: 1, name: "ISF Transmit", description: "Submit Import Security Filing" },
-            { id: 2, name: "ISF Match", description: "Verify ISF matches manifest" },
-            { id: 3, name: "Entry Created / Validate 7501", description: "Create customs entry and validate forms" },
-            { id: 4, name: "Inland Confirmation", description: "Confirm inland transportation requirements" },
-            { id: 5, name: "AWIS Invoice to AutoHub", description: "Send invoice to AutoHub" },
-            { id: 6, name: "NOA Received", description: "Receive Notice of Arrival from carrier", customStates: ["NOT RECEIVED", "RECEIVED"] },
-            { id: 7, name: "NOA to Accounting", description: "Forward NOA to accounting department" },
-            { id: 8, name: "Bitrix Updated with ETA", description: "Update customer system with arrival time" },
-            { id: 9, name: "Arrival Status Email", description: "Send arrival notification in Bitrix" },
-            { id: 10, name: "Check Payment Received in Betrix", description: "Confirm payment received from AutoHub", customStates: ["UNPAID", "PAID"] },
-            { id: 11, name: "Submit Entry to customs and for Tacoma, Seattle, and Charleston the Summary Packet", description: "Submit entry to customs" },
-            { id: 12, name: "CBP Release", description: "Obtain customs release" },
-            { id: 13, name: "Request SSL/Terminal Release", description: "Request steamship line and terminal release" },
-            { id: 14, name: "SSL/Terminal Release Confirmed", description: "Confirm release from SSL and terminal" },
-            { id: 15, name: "Release Notification to Customer or Transcar", description: "Notify customer of cargo release" },
-            { id: 16, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
-            { id: 17, name: "Mark Customs Clear in Bitrix", description: "Update customs clearance status" },
-            { id: 18, name: "Dispatch Memo to TCAS", description: "Send dispatch instructions to transport company" },
-            { id: 19, name: "REG Docs to CBP for Stamp", description: "Submit registration documents for stamping" },
-            { id: 20, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
+            { id: 1, name: "Review Customer Docs", description: "Confirmed all required info received from customer" },
+            { id: 2, name: "ISF Transmit", description: "Submit Import Security Filing" },
+            { id: 3, name: "ISF Match", description: "Verify ISF matches manifest" },
+            { id: 4, name: "Entry Created / Validate 7501", description: "Create customs entry and validate forms" },
+            { id: 5, name: "Inland Confirmation", description: "Confirm inland transportation requirements" },
+            { id: 6, name: "Update Betrix with Transport Status", description: "If YES, add trucking amount" },
+            { id: 7, name: "AWIS Invoice to AutoHub", description: "Send invoice to AutoHub" },
+            { id: 8, name: "NOA Received", description: "Receive Notice of Arrival from carrier", customStates: ["NOT RECEIVED", "RECEIVED"] },
+            { id: 9, name: "NOA to Accounting", description: "Forward NOA to accounting department" },
+            { id: 10, name: "Bitrix Updated with ETA", description: "Update customer system with arrival time" },
+            { id: 11, name: "Arrival Status Email", description: "Send arrival notification in Bitrix" },
+            { id: 12, name: "Check Payment Received in Betrix", description: "Confirm payment received from AutoHub", customStates: ["UNPAID", "PAID"] },
+            { id: 13, name: "Submit Entry to customs and for Tacoma, Seattle, and Charleston the Summary Packet", description: "Submit entry to customs" },
+            { id: 14, name: "CBP Release", description: "Obtain customs release" },
+            { id: 15, name: "Request SSL/Terminal Release", description: "Request steamship line and terminal release" },
+            { id: 16, name: "SSL/Terminal Release Confirmed", description: "Confirm release from SSL and terminal" },
+            { id: 17, name: "Release Notification to Customer or Transcar", description: "Notify customer of cargo release" },
+            { id: 18, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
+            { id: 19, name: "Mark Customs Clear in Bitrix", description: "Update customs clearance status" },
+            { id: 20, name: "REG Docs to CBP for Stamp", description: "Submit registration documents for stamping" },
+            { id: 21, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
         ];
 
         // ADDED: Function to calculate date X days before ETA
@@ -673,18 +674,18 @@
             if (!task) return '';
 
             switch (taskId) {
-                case 5: // AWIS Invoice to AutoHub
+                case 7: // AWIS Invoice to AutoHub
                     const invoiceByDate = getDateXDaysBefore(customerData.eta, 7);
                     return `${task.description}\nMust be sent by ${formatDate(invoiceByDate)}`;
                 
-                case 6: // NOA Received
+                case 8: // NOA Received
                     const requestByDate = getDateXDaysBefore(customerData.eta, 5);
                     return `${task.description}\nRequest by ${formatDate(requestByDate)}`;
                 
-                case 13: // Request SSL/Terminal Release
+                case 15: // Request SSL/Terminal Release
                     return `${task.description}\nVessel must have arrived prior to requesting`;
                 
-                case 15: // Release Notification
+                case 17: // Release Notification
                     return "Release Notification to Customer if no INLAND\nRelease Notification to Transcar if INLAND";
                 
                 default:
@@ -704,26 +705,27 @@
         // Enhanced task field mapping
         function getTaskFieldName(taskId) {
             const fieldNames = {
-                1: 'isf_transmit',
-                2: 'isf_match', 
-                3: 'entry_created',
-                4: 'inland_confirm',
-                5: 'awis_invoice',
-                6: 'noa_received',
-                7: 'noa_accounting',
-                8: 'bitrix_eta',
-                9: 'arrival_email',
-                10: 'payment_check',
-                11: 'entry_transmitted',
-                12: 'cbp_release',
-                13: 'ssl_request',
-                14: 'ssl_confirmed',
-                15: 'release_notification',
-                16: 'upload_release_docs',
-                17: 'customs_clear_bitrix',
-                18: 'dispatch_memo',
-                19: 'reg_docs_cbp',
-                20: 'reg_docs_bitrix'
+                1: 'review_customer_docs',
+                2: 'isf_transmit',
+                3: 'isf_match', 
+                4: 'entry_created',
+                5: 'inland_confirm',
+                6: 'update_betrix_transport',
+                7: 'awis_invoice',
+                8: 'noa_received',
+                9: 'noa_accounting',
+                10: 'bitrix_eta',
+                11: 'arrival_email',
+                12: 'payment_check',
+                13: 'entry_transmitted',
+                14: 'cbp_release',
+                15: 'ssl_request',
+                16: 'ssl_confirmed',
+                17: 'release_notification',
+                18: 'upload_release_docs',
+                19: 'customs_clear_bitrix',
+                20: 'reg_docs_cbp',
+                21: 'reg_docs_bitrix'
             };
             return fieldNames[taskId] || 'unknown';
         }
@@ -820,7 +822,7 @@
                     taskDates: {}
                 };
                 
-                for (let i = 1; i <= 20; i++) {
+                for (let i = 1; i <= 21; i++) {
                     const taskFieldName = getTaskFieldName(i);
                     
                     let taskValue = null;
@@ -1156,8 +1158,8 @@
         }
 
         function getDefaultTaskStatus(taskId) {
-            if (taskId === 6) return 'NOT RECEIVED';
-            if (taskId === 10) return 'UNPAID';
+            if (taskId === 8) return 'NOT RECEIVED';  // NOA Received
+            if (taskId === 12) return 'UNPAID';       // Check Payment Received
             return 'incomplete';
         }
 
@@ -1290,9 +1292,7 @@
         }
 
         function shouldShowTask(taskId, customerData) {
-            if (taskId === 18 && customerData.inland === 'N') {
-                return false;
-            }
+            // All tasks should be shown for now
             return true;
         }
 
