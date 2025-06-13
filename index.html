@@ -711,15 +711,20 @@
                 const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
                 let blNumber = '';
-                if (row['House No.']) {
+              // Try exact field names from your sheets
+                if (row['BL No.']) {
+                    blNumber = row['BL No.'];
+                    console.log(`✅ Found BL in 'BL No.' field: ${blNumber}`);
+                } else if (row['House No.']) {
                     blNumber = row['House No.'];
-                    console.log(`✅ Found BOL from 'House No.' field: ${blNumber}`);
+                    console.log(`✅ Found BL in 'House No.' field: ${blNumber}`);
                 } else {
-                    const possibleBLFields = ['BL No.', 'BL_No', 'BL No', 'BOL', 'bol'];
+                    // Fallback to other possible field names
+                    const possibleBLFields = ['BL_No', 'BL No', 'BOL', 'bol', 'House No.'];
                     for (const field of possibleBLFields) {
                         if (row[field]) {
                             blNumber = row[field];
-                            console.log(`✅ Found BOL in '${field}' field: ${blNumber}`);
+                            console.log(`✅ Found BL in '${field}' field: ${blNumber}`);
                             break;
                         }
                     }
@@ -738,7 +743,7 @@
                     if (blNumber && t['BL_No']) {
                         const match = String(t['BL_No']).trim() === String(blNumber).trim();
                         if (match) {
-                            console.log(`✅ Task data matched for ${row.Customer}, House No./BL_No: ${blNumber}`);
+                           console.log(`✅ Task data matched for ${row.Customer}, BL: ${blNumber}`);
                         }
                         return match;
                     }
@@ -1593,63 +1598,7 @@
             alert('Export functionality would be implemented here');
         }
 
-        // Debug function to show field names
-        async function debugFieldNames() {
-            if (!rawGoogleSheetsData) {
-                alert('No raw data available. Please click "Import Fresh Data" first.');
-                return;
-            }
-            
-            try {
-                let debugInfo = '🔍 DEBUG: Google Sheets Field Names\n\n';
-                
-                debugInfo += '🔗 FIELD MAPPING:\n';
-                debugInfo += '  - Manifest_Data "House No." → Dashboard BOL field\n';
-                debugInfo += '  - Task_Status "BL_No" → Matches House No. for task updates\n\n';
-                
-                if (rawGoogleSheetsData.manifestData && rawGoogleSheetsData.manifestData.length > 0) {
-                    debugInfo += '📊 MANIFEST_DATA Fields:\n';
-                    Object.keys(rawGoogleSheetsData.manifestData[0]).forEach(field => {
-                        debugInfo += `  - "${field}"\n`;
-                    });
-                    
-                    const sampleRow = rawGoogleSheetsData.manifestData[0];
-                    debugInfo += '\n📊 Sample Manifest Row (BOL Mapping):\n';
-                    if (sampleRow['House No.']) debugInfo += `  - House No.: "${sampleRow['House No.']}" ← THIS goes to Dashboard BOL field\n`;
-                    if (sampleRow['BL No.']) debugInfo += `  - BL No.: "${sampleRow['BL No.']}" (different field)\n`;
-                    debugInfo += `  - Customer: "${sampleRow.Customer}"\n`;
-                }
-                
-                if (rawGoogleSheetsData.taskData && rawGoogleSheetsData.taskData.length > 0) {
-                    debugInfo += '\n📋 TASK_STATUS Fields:\n';
-                    Object.keys(rawGoogleSheetsData.taskData[0]).forEach(field => {
-                        debugInfo += `  - "${field}"\n`;
-                    });
-                    
-                    const sampleTaskRow = rawGoogleSheetsData.taskData[0];
-                    debugInfo += '\n📋 Sample Task Row (Matching):\n';
-                    if (sampleTaskRow['BL_No']) debugInfo += `  - BL_No: "${sampleTaskRow['BL_No']}" ← Should match House No. from Manifest\n`;
-                    debugInfo += `  - Customer: "${sampleTaskRow.Customer}"\n`;
-                    if (sampleTaskRow.isf_transmit) debugInfo += `  - isf_transmit: "${sampleTaskRow.isf_transmit}"\n`;
-                }
-                
-                debugInfo += '\n📝 Transformed Customer Data:\n';
-                if (vesselsData.length > 0 && vesselsData[0].customers && vesselsData[0].customers.length > 0) {
-                    const customer = vesselsData[0].customers[0];
-                    debugInfo += `  - Name: "${customer.name}"\n`;
-                    debugInfo += `  - BOL: "${customer.bol}"\n`;
-                    debugInfo += `  - Task 1 Status: ${customer.tasks[1]}\n`;
-                    debugInfo += `  - Task 2 Status: ${customer.tasks[2]}\n`;
-                    debugInfo += `  - Task 3 Status: ${customer.tasks[3]}\n`;
-                }
-                
-                console.log('🔍 DEBUG INFO:', debugInfo);
-                alert(debugInfo);
-            } catch (error) {
-                console.error('Debug error:', error);
-                alert('Debug error: ' + error.message);
-            }
-        }
+       
 
         // FIXED: Initialize dashboard
         document.addEventListener('DOMContentLoaded', async () => {
