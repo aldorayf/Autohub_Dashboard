@@ -163,6 +163,9 @@
             max-height: none;
             overflow: visible;
             transition: all 0.3s ease;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
         }
 
         .vessel-content.collapsed {
@@ -186,7 +189,8 @@
 
         .customer-header {
             display: grid;
-            grid-template-columns: 2fr auto auto auto;
+            grid-template-columns: 1fr auto;
+            grid-template-rows: auto auto;
             gap: 0.5rem;
             align-items: start;
             margin-bottom: 0.5rem;
@@ -194,9 +198,16 @@
             border-bottom: 1px solid #dee2e6;
         }
 
+        .customer-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            grid-row: span 2;
+        }
+
         .customer-details-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 0.25rem;
             font-size: 0.75rem;
         }
@@ -524,9 +535,19 @@
                 grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             }
             
+            .vessel-content {
+                grid-template-columns: 1fr;
+            }
+            
             .customer-header {
                 grid-template-columns: 1fr;
                 gap: 0.25rem;
+            }
+            
+            .customer-badges {
+                grid-row: auto;
+                flex-direction: row;
+                flex-wrap: wrap;
             }
             
             .tasks-grid {
@@ -1807,31 +1828,31 @@
                                                           onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'bnumber', this.value)"
                                                           style="border: none; background: transparent; color: #6c757d; padding: 1px; width: 60px;"
                                                           placeholder="B#">
-                                            </div>
-                                            <div class="customer-details">
-                                                BOL: <span class="bol-field">${customer.bol || 'N/A'}</span>
+                                                | BOL: <span class="bol-field">${customer.bol || 'N/A'}</span>
                                             </div>
                                             <div class="customer-details">
                                                 Email: <input type="email" value="${customer.email || ''}" 
                                                               onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Email', this.value)"
-                                                              style="border: none; background: transparent; color: #6c757d; padding: 1px; width: 120px;"
+                                                              style="border: none; background: transparent; color: #6c757d; padding: 1px; width: 100%;"
                                                               placeholder="Email">
                                             </div>
-                                            <div class="customer-details" style="grid-column: span 2;">
-                                                <textarea class="customer-notes" 
-                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Notes', this.value)"
-                                                         placeholder="Customer notes..."
-                                                         rows="2">${customer.notes || ''}</textarea>
+                                        </div>
+                                        <div class="customer-badges">
+                                            <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.bol}', '${customer.eta}')">
+                                                ETA: ${formatDate(customer.eta)}
+                                            </div>
+                                            <div class="port-badge">${customer.pod}</div>
+                                            <div class="inland-badge ${getInlandClass(customer.inland)}" 
+                                                 onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}', '${customer.bol}')"
+                                                 style="cursor: pointer;">
+                                                ${getInlandDisplay(customer.inland)}
                                             </div>
                                         </div>
-                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.bol}', '${customer.eta}')">
-                                            ETA: ${formatDate(customer.eta)}
-                                        </div>
-                                        <div class="port-badge">${customer.pod}</div>
-                                        <div class="inland-badge ${getInlandClass(customer.inland)}" 
-                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}', '${customer.bol}')"
-                                             style="cursor: pointer;">
-                                            ${getInlandDisplay(customer.inland)}
+                                        <div style="grid-column: span 2;">
+                                            <textarea class="customer-notes" 
+                                                     onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Notes', this.value)"
+                                                     placeholder="Customer notes..."
+                                                     rows="2">${customer.notes || ''}</textarea>
                                         </div>
                                     </div>
                                     <div class="tasks-container">
