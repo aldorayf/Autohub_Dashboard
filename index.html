@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoHub Vessel & Customer Management Dashboard</title>
+    <title>AutoHub Vessel & Customer Management Dashboard - Compact</title>
     <style>
         * {
             margin: 0;
@@ -13,147 +13,130 @@
 
         body {
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            background: #f8f9fa;
             color: #333;
-            line-height: 1.6;
+            line-height: 1.4;
+            font-size: 13px;
         }
 
         .header {
-            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             color: white;
-            padding: 1rem 2rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 0.75rem 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             position: sticky;
             top: 0;
             z-index: 100;
         }
 
         .header h1 {
-            font-size: 2.5rem;
+            font-size: 1.5rem;
             font-weight: bold;
             text-align: center;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header .subtitle {
             text-align: center;
-            font-size: 1.1rem;
+            font-size: 0.85rem;
             opacity: 0.9;
-            margin-top: 0.5rem;
+            margin-top: 0.25rem;
         }
 
         .controls {
             background: white;
-            padding: 1.5rem 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-            border-radius: 0 0 15px 15px;
+            padding: 0.75rem 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e9ecef;
         }
 
         .controls-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.5rem;
             align-items: end;
         }
 
         .filter-group {
             display: flex;
             flex-direction: column;
-            gap: 0.25rem;
+            gap: 0.15rem;
         }
 
         .filter-group label {
-            font-weight: bold;
-            color: #4a5568;
-            font-size: 0.9rem;
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.75rem;
         }
 
         select, input {
-            padding: 0.75rem 1rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
+            padding: 0.4rem 0.5rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            transition: border-color 0.2s ease;
         }
 
         select:focus, input:focus {
             outline: none;
-            border-color: #e53e3e;
-            box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
+            border-color: #dc3545;
         }
 
         .btn {
-            padding: 0.75rem 1.5rem;
-            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            padding: 0.4rem 0.75rem;
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 4px;
             cursor: pointer;
-            font-weight: bold;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-right: 0.5rem;
-            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
+            margin-right: 0.25rem;
+            margin-bottom: 0.25rem;
         }
 
         .btn:hover {
-            background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+            background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
-        }
-
-        .btn-secondary:hover {
-            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+            background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
         }
 
         .btn-import {
-            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-        }
-
-        .btn-import:hover {
-            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: 0 2rem;
+            padding: 0 1rem;
         }
 
         .vessel-card {
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 1rem;
             overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .vessel-card:hover {
-            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
-            transform: translateY(-5px);
+            border: 1px solid #e9ecef;
         }
 
         .vessel-header {
-            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             color: white;
-            padding: 1.5rem 2rem;
+            padding: 0.6rem 1rem;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background 0.2s ease;
         }
 
         .vessel-header:hover {
-            background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
+            background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
         }
 
         .vessel-title {
-            font-size: 1.8rem;
+            font-size: 1.1rem;
             font-weight: bold;
             display: flex;
             justify-content: space-between;
@@ -161,13 +144,13 @@
         }
 
         .vessel-info {
-            margin-top: 0.5rem;
-            opacity: 0.9;
-            font-size: 1rem;
+            margin-top: 0.25rem;
+            opacity: 0.95;
+            font-size: 0.8rem;
         }
 
         .collapse-icon {
-            font-size: 1.5rem;
+            font-size: 1rem;
             transition: transform 0.3s ease;
         }
 
@@ -176,301 +159,311 @@
         }
 
         .vessel-content {
-            padding: 2rem;
+            padding: 0.75rem;
             max-height: none;
             overflow: visible;
-            transition: all 0.5s ease;
+            transition: all 0.3s ease;
         }
 
         .vessel-content.collapsed {
             max-height: 0;
-            padding: 0 2rem;
+            padding: 0 0.75rem;
             overflow: hidden;
         }
 
         .customer-card {
             background: #f8f9fa;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-bottom: 0.75rem;
+            padding: 0.6rem;
+            transition: border-color 0.2s ease;
         }
 
         .customer-card:hover {
-            border-color: #e53e3e;
-            box-shadow: 0 4px 12px rgba(229, 62, 62, 0.1);
+            border-color: #dc3545;
         }
 
         .customer-header {
             display: grid;
-            grid-template-columns: 1fr auto auto auto;
-            gap: 1rem;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #e2e8f0;
+            grid-template-columns: 2fr auto auto auto;
+            gap: 0.5rem;
+            align-items: start;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .customer-details-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.25rem;
+            font-size: 0.75rem;
         }
 
         .customer-name {
-            font-size: 1.3rem;
+            font-size: 0.9rem;
             font-weight: bold;
-            color: #2d3748;
+            color: #212529;
+            margin-bottom: 0.25rem;
+        }
+
+        .customer-name input {
+            border: none;
+            background: transparent;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #212529;
+            width: 100%;
+            padding: 1px;
         }
 
         .customer-details {
-            font-size: 0.9rem;
-            color: #4a5568;
-            margin-bottom: 0.5rem;
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-bottom: 0.2rem;
+        }
+
+        .customer-details input {
+            border: none;
+            background: transparent;
+            color: #6c757d;
+            padding: 1px;
+            font-size: 0.7rem;
         }
 
         .customer-notes {
-            font-size: 0.9rem;
-            color: #4a5568;
+            font-size: 0.7rem;
+            color: #6c757d;
             background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 0.75rem;
-            margin-top: 0.5rem;
-            min-height: 5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            padding: 0.4rem;
+            margin-top: 0.25rem;
+            min-height: 2.5rem;
             width: 100%;
             resize: vertical;
         }
 
-        .customer-notes:focus {
-            outline: none;
-            border-color: #e53e3e;
-            box-shadow: 0 0 0 2px rgba(229, 62, 62, 0.1);
+        .eta-badge, .port-badge, .inland-badge {
+            padding: 0.3rem 0.6rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
         }
 
         .eta-badge {
-            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            cursor: pointer;
-            transition: all 0.3s ease;
         }
 
         .eta-badge:hover {
-            background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
-            transform: translateY(-1px);
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
         }
 
         .port-badge {
-            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
             color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .inland-badge {
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .inland-yes {
-            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            background: linear-gradient(135deg, #fd7e14 0%, #e55a00 100%);
             color: white;
         }
 
         .inland-no {
-            background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+            background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
             color: white;
         }
 
         .inland-unknown {
-            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
-            color: white;
+            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+            color: #212529;
         }
 
         .tasks-container {
-            margin-top: 1rem;
+            margin-top: 0.5rem;
         }
 
         .tasks-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
         }
 
         .tasks-title {
-            font-size: 1.1rem;
+            font-size: 0.8rem;
             font-weight: bold;
-            color: #2d3748;
+            color: #212529;
         }
 
         .show-all-btn {
             background: none;
-            border: 2px solid #e53e3e;
-            color: #e53e3e;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
+            border: 1px solid #dc3545;
+            color: #dc3545;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
             cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: bold;
-            transition: all 0.3s ease;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
         }
 
         .show-all-btn:hover {
-            background: #e53e3e;
+            background: #dc3545;
             color: white;
         }
 
         .tasks-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.4rem;
         }
 
         .task-item {
             background: white;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 1rem;
-            transition: all 0.3s ease;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 0.4rem;
+            transition: all 0.2s ease;
             cursor: pointer;
+            font-size: 0.7rem;
         }
 
         .task-item:hover {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .task-item.incomplete {
-            border-color: #fed7d7;
-            background: #fffaf9;
+            border-color: #f5c6cb;
+            background: #fff5f5;
         }
 
         .task-item.in-progress {
-            border-color: #fbd38d;
+            border-color: #ffeaa7;
             background: #fffbf0;
         }
 
         .task-item.completed {
-            border-color: #c6f6d5;
-            background: #f0fff4;
+            border-color: #c3e6cb;
+            background: #f8fff9;
         }
 
         .task-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.2rem;
         }
 
         .task-number {
-            background: #4a5568;
+            background: #6c757d;
             color: white;
-            width: 24px;
-            height: 24px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.6rem;
             font-weight: bold;
         }
 
         .task-status {
-            padding: 0.25rem 0.75rem;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: bold;
+            padding: 0.15rem 0.4rem;
+            border-radius: 8px;
+            font-size: 0.6rem;
+            font-weight: 600;
         }
 
         .status-incomplete {
-            background: #fed7d7;
-            color: #c53030;
+            background: #f5c6cb;
+            color: #721c24;
         }
 
         .status-in-progress {
-            background: #fbd38d;
-            color: #d69e2e;
+            background: #ffeaa7;
+            color: #856404;
         }
 
         .status-completed {
-            background: #c6f6d5;
-            color: #38a169;
+            background: #c3e6cb;
+            color: #155724;
         }
 
         .status-not-received,
         .status-unpaid {
-            background: #fed7d7;
-            color: #c53030;
+            background: #f5c6cb;
+            color: #721c24;
         }
 
         .status-received,
         .status-paid {
-            background: #c6f6d5;
-            color: #38a169;
+            background: #c3e6cb;
+            color: #155724;
         }
 
         .task-name {
-            font-weight: bold;
-            color: #2d3748;
-            margin-bottom: 0.25rem;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 0.1rem;
+            font-size: 0.7rem;
         }
 
         .task-description {
-            font-size: 0.9rem;
-            color: #4a5568;
+            font-size: 0.65rem;
+            color: #6c757d;
+            line-height: 1.2;
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1rem;
         }
 
         .stat-card {
             background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
+            padding: 0.75rem;
+            border-radius: 6px;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border-top: 4px solid #e53e3e;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-top: 3px solid #dc3545;
         }
 
         .stat-card.arriving-week {
-            border-top-color: #4299e1;
+            border-top-color: #007bff;
         }
 
         .stat-card.urgent-tasks {
-            border-top-color: #f56565;
+            border-top-color: #dc3545;
         }
 
         .stat-number {
-            font-size: 2.5rem;
+            font-size: 1.5rem;
             font-weight: bold;
-            color: #e53e3e;
-            margin-bottom: 0.5rem;
+            color: #dc3545;
+            margin-bottom: 0.25rem;
         }
 
         .stat-number.arriving-week {
-            color: #4299e1;
+            color: #007bff;
         }
 
         .stat-number.urgent-tasks {
-            color: #f56565;
+            color: #dc3545;
         }
 
         .stat-label {
-            color: #4a5568;
-            font-weight: bold;
+            color: #6c757d;
+            font-weight: 600;
+            font-size: 0.7rem;
         }
 
         .hidden {
@@ -478,54 +471,62 @@
         }
 
         .eta-input {
-            background: transparent;
-            border: none;
-            color: white;
-            font-weight: bold;
-            font-size: 0.9rem;
+            background: rgba(255,255,255,0.9);
+            border: 1px solid white;
+            color: #212529;
+            font-weight: 600;
+            font-size: 0.7rem;
             text-align: center;
-            width: 100%;
-            padding: 0;
-        }
-
-        .eta-input:focus {
-            outline: none;
-            background: rgba(255,255,255,0.1);
-            border-radius: 4px;
+            width: 100px;
+            padding: 2px;
+            border-radius: 3px;
         }
 
         .bol-field {
-            color: #4a5568;
-            padding: 2px;
-            background-color: #f7fafc;
-            border-radius: 4px;
-            border: 1px solid #e2e8f0;
+            color: #6c757d;
+            padding: 1px 3px;
+            background-color: #f8f9fa;
+            border-radius: 2px;
+            border: 1px solid #dee2e6;
         }
 
-        @media (max-width: 768px) {
+        .task-date {
+            font-size: 0.6rem;
+            color: #6c757d;
+            margin-top: 0.2rem;
+        }
+
+        /* Compact table view for better information density */
+        .customer-compact {
+            display: grid;
+            grid-template-columns: 2fr 1fr auto auto auto;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.4rem;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.75rem;
+        }
+
+        .customer-compact:last-child {
+            border-bottom: none;
+        }
+
+        .customer-compact:hover {
+            background-color: #f8f9fa;
+        }
+
+        @media (max-width: 1200px) {
             .container {
-                padding: 0 1rem;
-            }
-            
-            .header {
-                padding: 1rem;
-            }
-            
-            .header h1 {
-                font-size: 2rem;
-            }
-            
-            .controls {
-                padding: 1rem;
+                padding: 0 0.5rem;
             }
             
             .controls-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             }
             
             .customer-header {
                 grid-template-columns: 1fr;
-                gap: 0.5rem;
+                gap: 0.25rem;
             }
             
             .tasks-grid {
@@ -538,25 +539,25 @@
     <div class="header">
         <h1>🚢 AutoHub Dashboard</h1>
         <div class="subtitle">Vessel & Customer Management System</div>
-        <div class="subtitle" id="dataSource" style="font-size: 0.9rem; opacity: 0.8;">📊 Loading Dashboard Data...</div>
+        <div class="subtitle" id="dataSource" style="font-size: 0.75rem; opacity: 0.8;">📊 Loading Dashboard Data...</div>
     </div>
 
     <div class="controls">
         <div class="controls-grid">
             <div class="filter-group">
-                <label for="vesselFilter">Filter by Vessel:</label>
+                <label for="vesselFilter">Vessel:</label>
                 <select id="vesselFilter" onchange="refreshFilters()">
                     <option value="">All Vessels</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="portFilter">Filter by Port:</label>
+                <label for="portFilter">Port:</label>
                 <select id="portFilter" onchange="refreshFilters()">
                     <option value="">All Ports</option>
                 </select>
             </div>
             <div class="filter-group">
-                <label for="statusFilter">Filter by Status:</label>
+                <label for="statusFilter">Status:</label>
                 <select id="statusFilter" onchange="refreshFilters()">
                     <option value="">All Statuses</option>
                     <option value="incomplete">Incomplete Tasks</option>
@@ -596,9 +597,9 @@
                 <input type="date" id="etsToFilter" onchange="refreshFilters()">
             </div>
             <div>
-                <button class="btn" onclick="refreshFilters()" title="Apply current filter settings">🔄 Refresh Filters</button>
-                <button class="btn btn-import" onclick="importData()" title="Import fresh data from Google Sheets">📥 Import Fresh Data</button>
-                <button class="btn btn-secondary" onclick="exportData()">📊 Export Report</button>
+                <button class="btn" onclick="refreshFilters()" title="Apply current filter settings">🔄 Refresh</button>
+                <button class="btn btn-import" onclick="importData()" title="Import fresh data from Google Sheets">📥 Import</button>
+                <button class="btn btn-secondary" onclick="exportData()">📊 Export</button>
             </div>
         </div>
     </div>
@@ -1114,7 +1115,7 @@
                 
                 if (allTasksCompleted(customerData.tasks)) {
                     tasksHeader.textContent = '✅ All Tasks Completed!';
-                    tasksHeader.style.color = '#38a169';
+                    tasksHeader.style.color = '#28a745';
                 }
             }
         }
@@ -1360,7 +1361,7 @@
                     </div>
                     <div class="task-name">${task.name}</div>
                     <div class="task-description">${formattedDescription}</div>
-                    ${taskDate ? `<div class="task-date" style="font-size: 0.8rem; color: #4a5568; margin-top: 0.5rem;">📅 ${taskDate}</div>` : ''}
+                    ${taskDate ? `<div class="task-date">📅 ${taskDate}</div>` : ''}
                 `;
                 
                 container.appendChild(taskElement);
@@ -1402,17 +1403,6 @@
                 input.type = 'date';
                 input.className = 'eta-input';
                 input.value = currentETA;
-                input.style.cssText = `
-                    background: rgba(255,255,255,0.9);
-                    border: 2px solid white;
-                    color: #2d3748;
-                    font-weight: bold;
-                    font-size: 0.9rem;
-                    text-align: center;
-                    width: 140px;
-                    padding: 4px;
-                    border-radius: 4px;
-                `;
                 
                 const saveAndRestore = () => {
                     try {
@@ -1706,7 +1696,7 @@
             const isShowingAll = button.textContent.includes('Show Less');
             
             if (isShowingAll) {
-                button.textContent = '📋 Show All Tasks';
+                button.textContent = '📋 Show All';
                 renderCustomerTasks(container, customerId, false);
             } else {
                 button.textContent = '📋 Show Less';
@@ -1794,7 +1784,7 @@
                             <span class="collapse-icon">▼</span>
                         </div>
                         <div class="vessel-info">
-                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ETA: ${vesselETA || 'N/A'} | ${sortedCustomers.length} Customer(s) | ⚠️ ${vesselUrgentTasks} Urgent Tasks
+                            Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ETA: ${vesselETA || 'N/A'} | ${sortedCustomers.length} Customer(s) | ⚠️ ${vesselUrgentTasks} Urgent
                         </div>
                     </div>
                     <div class="vessel-content">
@@ -1807,30 +1797,31 @@
                             return `
                                 <div class="customer-card">
                                     <div class="customer-header">
-                                        <div>
+                                        <div class="customer-details-section">
                                             <div class="customer-name">
                                                 <input type="text" value="${customer.name}" readonly
-                                                       style="border: none; background: #f7fafc; font-size: 1.3rem; font-weight: bold; color: #2d3748; width: 100%; padding: 2px; cursor: default;">
+                                                       style="border: none; background: transparent; font-size: 0.9rem; font-weight: bold; color: #212529; width: 100%; padding: 1px;">
                                             </div>
                                             <div class="customer-details">
                                                 B#: <input type="text" value="${customer.bnumber || ''}" 
                                                           onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'bnumber', this.value)"
-                                                          style="border: none; background: transparent; color: #4a5568; padding: 2px;"
-                                                          placeholder="Enter B number">
-                                                | BOL: <span class="bol-field">${customer.bol || 'N/A'}</span>
+                                                          style="border: none; background: transparent; color: #6c757d; padding: 1px; width: 60px;"
+                                                          placeholder="B#">
+                                            </div>
+                                            <div class="customer-details">
+                                                BOL: <span class="bol-field">${customer.bol || 'N/A'}</span>
                                             </div>
                                             <div class="customer-details">
                                                 Email: <input type="email" value="${customer.email || ''}" 
                                                               onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Email', this.value)"
-                                                              style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
-                                                              placeholder="Enter email address">
+                                                              style="border: none; background: transparent; color: #6c757d; padding: 1px; width: 120px;"
+                                                              placeholder="Email">
                                             </div>
-                                            <div class="customer-details">
-                                                Notes: 
+                                            <div class="customer-details" style="grid-column: span 2;">
                                                 <textarea class="customer-notes" 
                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Notes', this.value)"
-                                                         placeholder="Add customer notes..."
-                                                         rows="4">${customer.notes || ''}</textarea>
+                                                         placeholder="Customer notes..."
+                                                         rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
                                         <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.bol}', '${customer.eta}')">
@@ -1840,13 +1831,13 @@
                                         <div class="inland-badge ${getInlandClass(customer.inland)}" 
                                              onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}', '${customer.bol}')"
                                              style="cursor: pointer;">
-                                            Inland: ${getInlandDisplay(customer.inland)}
+                                            ${getInlandDisplay(customer.inland)}
                                         </div>
                                     </div>
                                     <div class="tasks-container">
                                         <div class="tasks-header">
                                             <div class="tasks-title">📋 Next Tasks (${nextTasks.length} pending)</div>
-                                            <button class="show-all-btn" onclick="toggleTasksView(this.closest('.customer-card'), '${customerId}')">📋 Show All Tasks</button>
+                                            <button class="show-all-btn" onclick="toggleTasksView(this.closest('.customer-card'), '${customerId}')">📋 Show All</button>
                                         </div>
                                         <div class="tasks-grid" id="tasks-${customerId}">
                                             <!-- Tasks will be rendered here -->
