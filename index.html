@@ -230,11 +230,10 @@
             background: white;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 0.5rem;
+            padding: 0.75rem;
             margin-top: 0.5rem;
-            min-height: 4rem;
+            min-height: 5rem;
             width: 100%;
-            max-width: 600px;
             resize: vertical;
         }
 
@@ -636,7 +635,7 @@
             spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54'
         };
 
-        // Task definitions
+        // Task definitions - UPDATED task 1 and task 5
         const TASKS = [
             { id: 1, name: "Review Customer Docs and Provide Trucking Quote", description: "Confirmed all required info received from customer and send Trucking Quote" },
             { id: 2, name: "ISF Transmit", description: "Submit Import Security Filing" },
@@ -764,6 +763,7 @@
                 
                 const vessel = vesselsMap.get(vesselKey);
                 
+                // UPDATED: Look up customer details by BL_No instead of Customer name
                 let blNumber = '';
                 if (row['House No.']) {
                     blNumber = row['House No.'];
@@ -779,35 +779,18 @@
                     }
                 }
                 
+                // UPDATED: Find customer details by BL_No
+                const customerDetail = customerDetails.find(c => c.BL_No === blNumber) || {};
+                
                 if (!blNumber) {
                     console.warn(`⚠️ No BL number found for customer: ${row.Customer}`);
                 }
                 
-                // Find customer detail by customer name AND BL number
-                const customerDetail = customerDetails.find(c => {
-                    const customerMatch = c.Customer === row.Customer || 
-                                        String(c.Customer || '').trim().toLowerCase() === String(row.Customer || '').trim().toLowerCase();
-                    
-                    if (!customerMatch) return false;
-                    
-                    // Also check BL_No match if available
-                    if (blNumber && c.BL_No) {
-                        return String(c.BL_No).trim() === String(blNumber).trim();
-                    }
-                    
-                    return true; // If no BL_No in customer details, just use customer name match
-                }) || {};
-                
                 const taskData = taskStatus.find(t => {
-                    const customerMatch = t.Customer === row.Customer || 
-                                        String(t.Customer || '').trim().toLowerCase() === String(row.Customer || '').trim().toLowerCase();
-                    
-                    if (!customerMatch) return false;
-                    
                     if (blNumber && t['BL_No']) {
                         const match = String(t['BL_No']).trim() === String(blNumber).trim();
                         if (match) {
-                            console.log(`✅ Task data matched for ${row.Customer}, House No./BL_No: ${blNumber}`);
+                            console.log(`✅ Task data matched for ${row.Customer}, BL_No: ${blNumber}`);
                         }
                         return match;
                     }
@@ -823,7 +806,7 @@
                 
                 const customer = {
                     name: row.Customer,
-                    bnumber: customerDetail.BNumber || '', // UPDATED: Use BNumber from Customer_Details
+                    bnumber: customerDetail.BNumber || '',
                     bol: blNumber,
                     email: customerDetail.Email || '',
                     notes: customerDetail.Notes || '',
@@ -929,12 +912,11 @@
             }
         }
 
-        // UPDATED: Save customer field function with BL_No support
-        async function saveCustomerToGoogleAppsScript(customerName, blNo, field, value) {
+        // UPDATED: Save customer field function to use BL_No
+        async function saveCustomerToGoogleAppsScript(blNo, field, value) {
             try {
                 const params = new URLSearchParams({
                     action: 'updateCustomer',
-                    customerName,
                     blNo,
                     field,
                     value
@@ -948,7 +930,7 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    console.log(`✅ Saved customer field ${field} for ${customerName}`);
+                    console.log(`✅ Saved customer field ${field} for BL_No ${blNo}`);
                     return true;
                 } else {
                     console.error('❌ Customer save failed:', result.error);
@@ -1713,31 +1695,31 @@
             }
         }
 
-        // UPDATED: Enhanced customer field update with Google Sheets saving
-        function updateCustomerField(vessel, customerName, field, value) {
+        // UPDATED: Enhanced customer field update with Google Sheets saving using BL_No
+        function updateCustomerField(vessel, customerName, blNo, field, value) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (vesselData) {
                 const customerData = vesselData.customers.find(c => c.name === customerName);
                 if (customerData) {
                     customerData[field] = value;
-                    console.log(`Updated ${field} for ${customerName} to ${value}`);
+                    console.log(`Updated ${field} for ${customerName} (BL: ${blNo}) to ${value}`);
                     
-                    // Save to Google Sheets with BL_No
-                    saveCustomerToGoogleAppsScript(customerName, customerData.bol, field === 'bnumber' ? 'BNumber' : field, value);
+                    // Save to Google Sheets using BL_No
+                    saveCustomerToGoogleAppsScript(blNo, field === 'bnumber' ? 'BNumber' : field, value);
                 }
             }
         }
 
-        // UPDATED: Enhanced inland status toggle with Google Sheets saving
-        function toggleInlandStatus(vessel, customerName) {
+        // UPDATED: Enhanced inland status toggle with Google Sheets saving using BL_No
+        function toggleInlandStatus(vessel, customerName, blNo) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (vesselData) {
                 const customerData = vesselData.customers.find(c => c.name === customerName);
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
                     
-                    // Save to Google Sheets with BL_No
-                    saveCustomerToGoogleAppsScript(customerName, customerData.bol, 'Inland', customerData.inland);
+                    // Save to Google Sheets using BL_No
+                    saveCustomerToGoogleAppsScript(blNo, 'Inland', customerData.inland);
                     
                     const customerCards = document.querySelectorAll('.customer-card');
                     customerCards.forEach(card => {
@@ -1808,21 +1790,21 @@
                                             </div>
                                             <div class="customer-details">
                                                 B#: <input type="text" value="${customer.bnumber || ''}" 
-                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'bnumber', this.value)"
+                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'bnumber', this.value)"
                                                           style="border: none; background: transparent; color: #4a5568; padding: 2px;"
                                                           placeholder="Enter B number">
                                                 | BOL: <span class="bol-field">${customer.bol || 'N/A'}</span>
                                             </div>
                                             <div class="customer-details">
                                                 Email: <input type="email" value="${customer.email || ''}" 
-                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'Email', this.value)"
+                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Email', this.value)"
                                                               style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
                                                               placeholder="Enter email address">
                                             </div>
                                             <div class="customer-details">
                                                 Notes: 
                                                 <textarea class="customer-notes" 
-                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'Notes', this.value)"
+                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Notes', this.value)"
                                                          placeholder="Add customer notes..."
                                                          rows="4">${customer.notes || ''}</textarea>
                                             </div>
@@ -1832,7 +1814,7 @@
                                         </div>
                                         <div class="port-badge">${customer.pod}</div>
                                         <div class="inland-badge ${getInlandClass(customer.inland)}" 
-                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}')"
+                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}', '${customer.bol}')"
                                              style="cursor: pointer;">
                                             Inland: ${getInlandDisplay(customer.inland)}
                                         </div>
