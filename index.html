@@ -232,7 +232,9 @@
             border-radius: 6px;
             padding: 0.5rem;
             margin-top: 0.5rem;
-            min-height: 2rem;
+            min-height: 4rem;
+            width: 100%;
+            max-width: 600px;
             resize: vertical;
         }
 
@@ -636,11 +638,11 @@
 
         // Task definitions
         const TASKS = [
-            { id: 1, name: "Review Customer Docs", description: "Confirmed all required info received from customer" },
+            { id: 1, name: "Review Customer Docs and Provide Trucking Quote", description: "Confirmed all required info received from customer and send Trucking Quote" },
             { id: 2, name: "ISF Transmit", description: "Submit Import Security Filing" },
             { id: 3, name: "ISF Match", description: "Verify ISF matches manifest" },
             { id: 4, name: "Entry Created / Validate 7501", description: "Create customs entry and validate forms" },
-            { id: 5, name: "Inland Confirmation", description: "Confirm inland transportation requirements" },
+            { id: 5, name: "Inland Confirmation", description: "Confirm customer wants inland transportation" },
             { id: 6, name: "Update Betrix with Transport Status", description: "If YES, add trucking amount" },
             { id: 7, name: "AWIS Invoice to AutoHub", description: "Send invoice and Trucking Sheet to AutoHub" },
             { id: 8, name: "NOA Received", description: "Receive Notice of Arrival from carrier", customStates: ["NOT RECEIVED", "RECEIVED"] },
@@ -762,8 +764,6 @@
                 
                 const vessel = vesselsMap.get(vesselKey);
                 
-                const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
-                
                 let blNumber = '';
                 if (row['House No.']) {
                     blNumber = row['House No.'];
@@ -782,6 +782,21 @@
                 if (!blNumber) {
                     console.warn(`⚠️ No BL number found for customer: ${row.Customer}`);
                 }
+                
+                // Find customer detail by customer name AND BL number
+                const customerDetail = customerDetails.find(c => {
+                    const customerMatch = c.Customer === row.Customer || 
+                                        String(c.Customer || '').trim().toLowerCase() === String(row.Customer || '').trim().toLowerCase();
+                    
+                    if (!customerMatch) return false;
+                    
+                    // Also check BL_No match if available
+                    if (blNumber && c.BL_No) {
+                        return String(c.BL_No).trim() === String(blNumber).trim();
+                    }
+                    
+                    return true; // If no BL_No in customer details, just use customer name match
+                }) || {};
                 
                 const taskData = taskStatus.find(t => {
                     const customerMatch = t.Customer === row.Customer || 
@@ -914,12 +929,13 @@
             }
         }
 
-        // ADDED: Save customer field function
-        async function saveCustomerToGoogleAppsScript(customerName, field, value) {
+        // UPDATED: Save customer field function with BL_No support
+        async function saveCustomerToGoogleAppsScript(customerName, blNo, field, value) {
             try {
                 const params = new URLSearchParams({
                     action: 'updateCustomer',
                     customerName,
+                    blNo,
                     field,
                     value
                 });
@@ -1706,8 +1722,8 @@
                     customerData[field] = value;
                     console.log(`Updated ${field} for ${customerName} to ${value}`);
                     
-                    // Save to Google Sheets
-                    saveCustomerToGoogleAppsScript(customerName, field === 'bnumber' ? 'BNumber' : field, value);
+                    // Save to Google Sheets with BL_No
+                    saveCustomerToGoogleAppsScript(customerName, customerData.bol, field === 'bnumber' ? 'BNumber' : field, value);
                 }
             }
         }
@@ -1720,8 +1736,8 @@
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
                     
-                    // Save to Google Sheets
-                    saveCustomerToGoogleAppsScript(customerName, 'Inland', customerData.inland);
+                    // Save to Google Sheets with BL_No
+                    saveCustomerToGoogleAppsScript(customerName, customerData.bol, 'Inland', customerData.inland);
                     
                     const customerCards = document.querySelectorAll('.customer-card');
                     customerCards.forEach(card => {
@@ -1808,7 +1824,7 @@
                                                 <textarea class="customer-notes" 
                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'Notes', this.value)"
                                                          placeholder="Add customer notes..."
-                                                         rows="2">${customer.notes || ''}</textarea>
+                                                         rows="4">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
                                         <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.eta}')">
