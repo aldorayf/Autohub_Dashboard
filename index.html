@@ -230,12 +230,10 @@
             background: white;
             border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 0.75rem;
+            padding: 0.5rem;
             margin-top: 0.5rem;
-            min-height: 4rem;
+            min-height: 2rem;
             resize: vertical;
-            width: 100%;
-            max-width: 600px;
         }
 
         .customer-notes:focus {
@@ -638,11 +636,11 @@
 
         // Task definitions
         const TASKS = [
-            { id: 1, name: "Review Customer Docs and Provide Trucking Quote", description: "Confirmed all required info received from customer and send Trucking Quote" },
+            { id: 1, name: "Review Customer Docs", description: "Confirmed all required info received from customer" },
             { id: 2, name: "ISF Transmit", description: "Submit Import Security Filing" },
             { id: 3, name: "ISF Match", description: "Verify ISF matches manifest" },
             { id: 4, name: "Entry Created / Validate 7501", description: "Create customs entry and validate forms" },
-            { id: 5, name: "Inland Confirmation", description: "Confirm customer wants inland transportation" },
+            { id: 5, name: "Inland Confirmation", description: "Confirm inland transportation requirements" },
             { id: 6, name: "Update Betrix with Transport Status", description: "If YES, add trucking amount" },
             { id: 7, name: "AWIS Invoice to AutoHub", description: "Send invoice and Trucking Sheet to AutoHub" },
             { id: 8, name: "NOA Received", description: "Receive Notice of Arrival from carrier", customStates: ["NOT RECEIVED", "RECEIVED"] },
@@ -764,22 +762,7 @@
                 
                 const vessel = vesselsMap.get(vesselKey);
                 
-                // UPDATED: Find customer details using both Customer name AND BL_No
-                const customerDetail = customerDetails.find(c => {
-                    // First check for customer name match
-                    const customerMatch = c.Customer === row.Customer || 
-                                        String(c.Customer || '').trim().toLowerCase() === String(row.Customer || '').trim().toLowerCase();
-                    
-                    if (!customerMatch) return false;
-                    
-                    // Now also check BL_No if it exists
-                    const rowBL = row['House No.'] || row['BL No.'] || row['BL_No'] || row['BL No'] || row['BOL'] || row['bol'] || '';
-                    if (rowBL && c.BL_No) {
-                        return String(c.BL_No).trim() === String(rowBL).trim();
-                    }
-                    
-                    return true; // Just customer name match if no BL to compare
-                }) || {};
+                const customerDetail = customerDetails.find(c => c.Customer === row.Customer) || {};
                 
                 let blNumber = '';
                 if (row['House No.']) {
@@ -931,13 +914,12 @@
             }
         }
 
-        // UPDATED: Save customer field function to include BL_No
-        async function saveCustomerToGoogleAppsScript(customerName, blNo, field, value) {
+        // ADDED: Save customer field function
+        async function saveCustomerToGoogleAppsScript(customerName, field, value) {
             try {
                 const params = new URLSearchParams({
                     action: 'updateCustomer',
                     customerName,
-                    blNo,
                     field,
                     value
                 });
@@ -1715,8 +1697,8 @@
             }
         }
 
-        // UPDATED: Enhanced customer field update with Google Sheets saving including BL_No
-        function updateCustomerField(vessel, customerName, customerBL, field, value) {
+        // UPDATED: Enhanced customer field update with Google Sheets saving
+        function updateCustomerField(vessel, customerName, field, value) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (vesselData) {
                 const customerData = vesselData.customers.find(c => c.name === customerName);
@@ -1724,22 +1706,22 @@
                     customerData[field] = value;
                     console.log(`Updated ${field} for ${customerName} to ${value}`);
                     
-                    // Save to Google Sheets with BL_No
-                    saveCustomerToGoogleAppsScript(customerName, customerBL, field === 'bnumber' ? 'BNumber' : field, value);
+                    // Save to Google Sheets
+                    saveCustomerToGoogleAppsScript(customerName, field === 'bnumber' ? 'BNumber' : field, value);
                 }
             }
         }
 
-        // UPDATED: Enhanced inland status toggle with Google Sheets saving including BL_No
-        function toggleInlandStatus(vessel, customerName, customerBL) {
+        // UPDATED: Enhanced inland status toggle with Google Sheets saving
+        function toggleInlandStatus(vessel, customerName) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (vesselData) {
                 const customerData = vesselData.customers.find(c => c.name === customerName);
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
                     
-                    // Save to Google Sheets with BL_No
-                    saveCustomerToGoogleAppsScript(customerName, customerBL, 'Inland', customerData.inland);
+                    // Save to Google Sheets
+                    saveCustomerToGoogleAppsScript(customerName, 'Inland', customerData.inland);
                     
                     const customerCards = document.querySelectorAll('.customer-card');
                     customerCards.forEach(card => {
@@ -1810,23 +1792,23 @@
                                             </div>
                                             <div class="customer-details">
                                                 B#: <input type="text" value="${customer.bnumber || ''}" 
-                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'bnumber', this.value)"
+                                                          onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'bnumber', this.value)"
                                                           style="border: none; background: transparent; color: #4a5568; padding: 2px;"
                                                           placeholder="Enter B number">
                                                 | BOL: <span class="bol-field">${customer.bol || 'N/A'}</span>
                                             </div>
                                             <div class="customer-details">
                                                 Email: <input type="email" value="${customer.email || ''}" 
-                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Email', this.value)"
+                                                              onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'Email', this.value)"
                                                               style="border: none; background: transparent; color: #4a5568; padding: 2px; width: 200px;"
                                                               placeholder="Enter email address">
                                             </div>
                                             <div class="customer-details">
                                                 Notes: 
                                                 <textarea class="customer-notes" 
-                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', '${customer.bol}', 'Notes', this.value)"
+                                                         onchange="updateCustomerField('${vessel.vessel}', '${customer.name}', 'Notes', this.value)"
                                                          placeholder="Add customer notes..."
-                                                         rows="4">${customer.notes || ''}</textarea>
+                                                         rows="2">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
                                         <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.eta}')">
@@ -1834,7 +1816,7 @@
                                         </div>
                                         <div class="port-badge">${customer.pod}</div>
                                         <div class="inland-badge ${getInlandClass(customer.inland)}" 
-                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}', '${customer.bol}')"
+                                             onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}')"
                                              style="cursor: pointer;">
                                             Inland: ${getInlandDisplay(customer.inland)}
                                         </div>
