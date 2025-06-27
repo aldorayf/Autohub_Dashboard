@@ -857,7 +857,7 @@
             }
         }
 
-        // ADDED: Process task update queue to prevent rapid clicking issues
+        // UPDATED: Process task update queue to prevent rapid clicking issues
         async function processTaskUpdateQueue() {
             if (isProcessingTaskUpdates || taskUpdateQueue.length === 0) return;
             
@@ -866,6 +866,7 @@
             while (taskUpdateQueue.length > 0) {
                 const update = taskUpdateQueue.shift();
                 try {
+                    console.log(`📤 Processing task update: Customer: ${update.customerName}, BL: ${update.blNo}, Task: ${update.taskId}`);
                     await saveTaskToGoogleAppsScript(update.customerName, update.blNo, update.taskId, update.newStatus);
                     console.log(`✅ Processed queued task update: ${update.taskId} = ${update.newStatus}`);
                 } catch (error) {
@@ -1045,13 +1046,24 @@
             }
         }
 
-        // UPDATED: Enhanced task update with queueing
-        function updateTaskStatus(vessel, customer, taskId, newStatus) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            if (!vesselData) return;
+        // UPDATED: Enhanced task update with queueing - NOW USES BOL NUMBER
+        function updateTaskStatus(vessel, customer, bol, taskId, newStatus) {
+            console.log(`🔄 Updating task ${taskId} for vessel: ${vessel}, customer: ${customer}, BOL: ${bol}`);
             
-            const customerData = vesselData.customers.find(c => c.name === customer);
-            if (!customerData) return;
+            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            if (!vesselData) {
+                console.error(`❌ Vessel not found: ${vessel}`);
+                return;
+            }
+            
+            // FIXED: Find customer by BOL number, not just name
+            const customerData = vesselData.customers.find(c => c.bol === bol);
+            if (!customerData) {
+                console.error(`❌ Customer not found with BOL: ${bol}`);
+                return;
+            }
+            
+            console.log(`✅ Found correct customer: ${customerData.name} with BOL: ${customerData.bol}`);
             
             // Update local data immediately
             customerData.tasks[taskId] = newStatus;
@@ -1075,16 +1087,19 @@
             // Process queue
             processTaskUpdateQueue();
             
-            // Refresh UI
-            const customerId = `${vessel}|${customer}`;
+            // Refresh UI - now includes BOL with proper encoding
+            const safeBol = encodeURIComponent(bol);
+            const customerId = `${vessel}|${customer}|${safeBol}`;
             refreshCustomerTasks(customerId);
             updateStatsOnly();
         }
 
         function refreshCustomerTasks(customerId) {
-            const [vessel, customer] = customerId.split('|');
+            const [vessel, customer, encodedBol] = customerId.split('|');
+            const bol = decodeURIComponent(encodedBol);
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            const customerData = vesselData.customers.find(c => c.name === customer);
+            // FIXED: Find customer by BOL number
+            const customerData = vesselData.customers.find(c => c.bol === bol);
             
             const tasksContainer = document.getElementById(`tasks-${customerId}`);
             if (tasksContainer) {
@@ -1292,9 +1307,11 @@
         }
 
         function renderCustomerTasks(container, customerId, showAll = false) {
-            const [vessel, customer] = customerId.split('|');
+            const [vessel, customer, encodedBol] = customerId.split('|');
+            const bol = decodeURIComponent(encodedBol);
             const vesselData = vesselsData.find(v => v.vessel === vessel);
-            const customerData = vesselData.customers.find(c => c.name === customer);
+            // FIXED: Find customer by BOL number
+            const customerData = vesselData.customers.find(c => c.bol === bol);
             
             const tasksToShow = showAll ? 
                 getAllTasks(customerData.tasks) : 
@@ -1322,7 +1339,8 @@
                 taskElement.className = `task-item ${cssStatus}`;
                 taskElement.onclick = () => {
                     const newStatus = cycleTaskStatus(status, taskId);
-                    updateTaskStatus(vessel, customer, taskId, newStatus);
+                    // FIXED: Pass BOL number to updateTaskStatus
+                    updateTaskStatus(vessel, customer, bol, taskId, newStatus);
                 };
                 
                 let displayStatus = status;
@@ -1349,15 +1367,16 @@
             });
         }
 
-        function updateETA(vessel, customerName, newETA) {
+        function updateETA(vessel, customerName, blNo, newETA) {
             try {
                 const vesselData = vesselsData.find(v => v.vessel === vessel);
                 if (vesselData) {
-                    const customerData = vesselData.customers.find(c => c.name === customerName);
+                    // FIXED: Find customer by BOL number
+                    const customerData = vesselData.customers.find(c => c.bol === blNo);
                     if (customerData) {
                         const oldETA = customerData.eta;
                         customerData.eta = newETA;
-                        console.log(`✅ Updated ETA for ${customerName} from ${oldETA} to ${newETA}`);
+                        console.log(`✅ Updated ETA for ${customerName} (BL: ${blNo}) from ${oldETA} to ${newETA}`);
                         
                         // Save to Google Sheets
                         saveETAToGoogleAppsScript(customerName, newETA);
@@ -1373,7 +1392,7 @@
             }
         }
 
-        function makeETAEditable(element, vessel, customerName, currentETA) {
+        function makeETAEditable(element, vessel, customerName, blNo, currentETA) {
             event.stopPropagation();
             
             const originalContent = element.innerHTML;
@@ -1398,7 +1417,7 @@
                 const saveAndRestore = () => {
                     try {
                         if (input.value && input.value !== currentETA) {
-                            updateETA(vessel, customerName, input.value);
+                            updateETA(vessel, customerName, blNo, input.value);
                         } else {
                             element.innerHTML = originalContent;
                         }
@@ -1699,7 +1718,8 @@
         function updateCustomerField(vessel, customerName, blNo, field, value) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.name === customerName);
+                // FIXED: Find customer by BOL number
+                const customerData = vesselData.customers.find(c => c.bol === blNo);
                 if (customerData) {
                     customerData[field] = value;
                     console.log(`Updated ${field} for ${customerName} (BL: ${blNo}) to ${value}`);
@@ -1714,24 +1734,26 @@
         function toggleInlandStatus(vessel, customerName, blNo) {
             const vesselData = vesselsData.find(v => v.vessel === vessel);
             if (vesselData) {
-                const customerData = vesselData.customers.find(c => c.name === customerName);
+                // FIXED: Find customer by BOL number
+                const customerData = vesselData.customers.find(c => c.bol === blNo);
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
                     
                     // Save to Google Sheets using BL_No
                     saveCustomerToGoogleAppsScript(blNo, 'Inland', customerData.inland);
                     
-                    const customerCards = document.querySelectorAll('.customer-card');
-                    customerCards.forEach(card => {
-                        const nameInput = card.querySelector('input[value="' + customerName + '"]');
-                        if (nameInput) {
-                            const inlandBadge = card.querySelector('.inland-badge');
-                            if (inlandBadge) {
-                                inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
-                                inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
-                            }
+                    // Update only the specific customer card with matching BOL
+                    const safeBol = encodeURIComponent(blNo);
+                    const customerId = `${vessel}|${customerName}|${safeBol}`;
+                    const tasksContainer = document.getElementById(`tasks-${customerId}`);
+                    if (tasksContainer) {
+                        const customerCard = tasksContainer.closest('.customer-card');
+                        const inlandBadge = customerCard.querySelector('.inland-badge');
+                        if (inlandBadge) {
+                            inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
+                            inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
                         }
-                    });
+                    }
                     
                     updateStatsOnly();
                 }
@@ -1777,7 +1799,9 @@
                     </div>
                     <div class="vessel-content">
                         ${sortedCustomers.map(customer => {
-                            const customerId = `${vessel.vessel}|${customer.name}`;
+                            // FIXED: Include BOL in customerId with safe encoding
+                            const safeBol = encodeURIComponent(customer.bol || '');
+                            const customerId = `${vessel.vessel}|${customer.name}|${safeBol}`;
                             const nextTasks = getNextTasks(customer.tasks, 3);
                             
                             return `
@@ -1809,7 +1833,7 @@
                                                          rows="4">${customer.notes || ''}</textarea>
                                             </div>
                                         </div>
-                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.eta}')">
+                                        <div class="eta-badge" onclick="event.stopPropagation(); makeETAEditable(this, '${vessel.vessel}', '${customer.name}', '${customer.bol}', '${customer.eta}')">
                                             ETA: ${formatDate(customer.eta)}
                                         </div>
                                         <div class="port-badge">${customer.pod}</div>
@@ -1848,7 +1872,9 @@
                 }
                 
                 sortedCustomers.forEach(customer => {
-                    const customerId = `${vessel.vessel}|${customer.name}`;
+                    // FIXED: Include BOL in customerId with safe encoding
+                    const safeBol = encodeURIComponent(customer.bol || '');
+                    const customerId = `${vessel.vessel}|${customer.name}|${safeBol}`;
                     const tasksContainer = document.getElementById(`tasks-${customerId}`);
                     renderCustomerTasks(tasksContainer, customerId, false);
                 });
