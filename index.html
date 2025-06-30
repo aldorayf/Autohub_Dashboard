@@ -661,7 +661,7 @@
     <script>
         // Google Apps Script configuration
         const GOOGLE_APPS_SCRIPT_CONFIG = {
-            webAppUrl: 'https://script.google.com/macros/s/AKfycbw-mzDqnDbIJEB1x9x5Uwdm0Gh-h9gcBSpvbjGF2DQ/dev',
+            webAppUrl: 'https://script.google.com/macros/s/AKfycbz1YhzmOZHcS97vXiIvKkEBbQCDsun__BFeTkjJZyLgujxoiMn3J1DZY0BmmfHUHwu4/exec',
             spreadsheetId: '1oDjo-CbFuSLllevg3NAJpFuqNDa9OnKVYgvyK2C_S54'
         };
 
@@ -1009,7 +1009,8 @@
                 const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.webAppUrl, {
                     method: 'GET',
                     mode: 'cors',
-                    cache: 'no-cache'
+                    cache: 'no-cache',
+                    redirect: 'follow'
                 });
                 
                 if (!response.ok) {
@@ -1017,6 +1018,8 @@
                 }
                 
                 const textResponse = await response.text();
+                console.log('📄 Raw response received, length:', textResponse.length);
+                
                 const data = JSON.parse(textResponse);
                 
                 if (data.success === false) {
@@ -1035,6 +1038,13 @@
                 
             } catch (error) {
                 console.error('❌ Error loading data:', error);
+                // Try one more time with a delay
+                if (!error.retried) {
+                    console.log('🔄 Retrying in 2 seconds...');
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    error.retried = true;
+                    return loadFromGoogleAppsScript();
+                }
                 throw error;
             }
         }
