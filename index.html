@@ -258,7 +258,7 @@
             resize: vertical;
         }
 
-        .eta-badge, .port-badge, .inland-badge {
+        .eta-badge, .port-badge, .inland-badge, .paid-badge {
             padding: 0.3rem 0.6rem;
             border-radius: 12px;
             font-weight: 600;
@@ -296,6 +296,16 @@
         .inland-unknown {
             background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
             color: #212529;
+        }
+
+        .paid-unpaid {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+
+        .paid-paid {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+            color: white;
         }
 
         .tasks-container {
@@ -1146,6 +1156,13 @@
                     tasksHeader.textContent = '✅ All Tasks Completed!';
                     tasksHeader.style.color = '#28a745';
                 }
+
+                // Update paid badge when task 12 changes
+                const paidBadge = tasksContainer.closest('.customer-card').querySelector('.paid-badge');
+                if (paidBadge) {
+                    paidBadge.className = `paid-badge ${getPaidClass(customerData.tasks)}`;
+                    paidBadge.textContent = getPaidDisplay(customerData.tasks);
+                }
             }
         }
 
@@ -1329,6 +1346,16 @@
                 case 'UNKNOWN':
                 default: return 'Inland: Unknown';
             }
+        }
+
+        function getPaidClass(customerTasks) {
+            const task12Status = customerTasks[12] || 'UNPAID';
+            return task12Status === 'PAID' ? 'paid-paid' : 'paid-unpaid';
+        }
+
+        function getPaidDisplay(customerTasks) {
+            const task12Status = customerTasks[12] || 'UNPAID';
+            return task12Status === 'PAID' ? 'PAID' : 'UNPAID';
         }
 
         function shouldShowTask(taskId, customerData) {
@@ -1854,6 +1881,9 @@
                                                  onclick="toggleInlandStatus('${vessel.vessel}', '${customer.name}', '${customer.bol}')"
                                                  style="cursor: pointer;">
                                                 ${getInlandDisplay(customer.inland)}
+                                            </div>
+                                            <div class="paid-badge ${getPaidClass(customer.tasks)}">
+                                                ${getPaidDisplay(customer.tasks)}
                                             </div>
                                         </div>
                                         <div style="grid-column: span 2;">
