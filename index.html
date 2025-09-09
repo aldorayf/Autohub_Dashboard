@@ -678,7 +678,7 @@
         // Task definitions - UPDATED with new task 2
         const TASKS = [
             { id: 1, name: "Review Customer Docs and Provide Trucking Quote", description: "Confirmed all required info received from customer and send Trucking Quote" },
-            { id: 2, name: "File Single Entry Bond", description: "File Single Entry Bond or request Continuous Bond Number for volume importers" },
+            { id: 2, name: "File Single Entry Bond / If volume importer then request their Continues Bond Number", description: "File Single Entry Bond or request Continuous Bond Number for volume importers" },
             { id: 3, name: "ISF Transmit", description: "Submit Import Security Filing" },
             { id: 4, name: "ISF Match", description: "Verify ISF matches manifest" },
             { id: 5, name: "Entry Created / Validate 7501", description: "Create customs entry and validate forms" },
@@ -1729,10 +1729,22 @@
             const content = header.nextElementSibling;
             const icon = header.querySelector('.collapse-icon');
             
-            const vesselInfo = header.querySelector('.vessel-info').textContent;
-            const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
-            const vesselName = header.querySelector('.vessel-title').textContent.replace('▼', '').replace('▶', '').trim();
-            const voyage = voyageMatch ? voyageMatch[1].trim() : '';
+            // Extract vessel name and voyage from the title which now shows "VESSEL - Voyage VOYAGE"
+            const titleText = header.querySelector('.vessel-title').childNodes[0].textContent.trim();
+            const match = titleText.match(/(.+) - Voyage (.+)/);
+            
+            let vesselName, voyage;
+            if (match) {
+                vesselName = match[1].trim();
+                voyage = match[2].trim();
+            } else {
+                // Fallback to old format
+                const vesselInfo = header.querySelector('.vessel-info').textContent;
+                const voyageMatch = vesselInfo.match(/Voyage: ([^|]+)/);
+                vesselName = titleText.replace('▼', '').replace('▶', '').trim();
+                voyage = voyageMatch ? voyageMatch[1].trim() : '';
+            }
+            
             const vesselKey = `${vesselName}_${voyage}`;
             
             if (content.classList.contains('collapsed')) {
@@ -1967,4 +1979,3 @@
     </script>
 </body>
 </html>
-
