@@ -1836,12 +1836,11 @@
                 const vesselUrgentTasks = countVesselUrgentTasks(vessel); // ADDED: Count urgent tasks for vessel
                 
                 vesselCard.innerHTML = `
-                    vesselCard.innerHTML = `
                     <div class="vessel-header" onclick="toggleVessel(this)">
                         <div class="vessel-title">
-                        ${vessel.vessel}
-                        <span class="collapse-icon">▼</span>
-                    </div>
+                            ${vessel.vessel}
+                            <span class="collapse-icon">▼</span>
+                        </div>
                         <div class="vessel-info">
                             Voyage: ${vessel.voyage} | ETS: ${formatDate(vessel.ets)} | ETA: ${vesselETA || 'N/A'} | ${sortedCustomers.length} Customer(s) | ⚠️ ${vesselUrgentTasks} Urgent
                         </div>
@@ -1968,5 +1967,3 @@
     </script>
 </body>
 </html>
-
-
