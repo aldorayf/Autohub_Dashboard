@@ -1088,24 +1088,37 @@
             }
         }
 
-        // UPDATED: Enhanced task update with queueing - NOW USES BOL NUMBER
+        // FIXED: Enhanced task update with vessel+voyage lookup
         function updateTaskStatus(vessel, customer, bol, taskId, newStatus) {
             console.log(`🔄 Updating task ${taskId} for vessel: ${vessel}, customer: ${customer}, BOL: ${bol}`);
             
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            // Find vessel data by matching both vessel name AND the customer's BOL
+            let vesselData = null;
+            let actualVoyage = null;
+            
+            for (let v of vesselsData) {
+                // Check if this vessel has the customer with the matching BOL
+                const hasCustomer = v.customers.some(c => c.bol === bol);
+                if (v.vessel === vessel && hasCustomer) {
+                    vesselData = v;
+                    actualVoyage = v.voyage;
+                    break;
+                }
+            }
+            
             if (!vesselData) {
-                console.error(`❌ Vessel not found: ${vessel}`);
+                console.error(`❌ Vessel not found: ${vessel} with customer BOL: ${bol}`);
                 return;
             }
             
-            // FIXED: Find customer by BOL number, not just name
+            // Find customer by BOL number
             const customerData = vesselData.customers.find(c => c.bol === bol);
             if (!customerData) {
                 console.error(`❌ Customer not found with BOL: ${bol}`);
                 return;
             }
             
-            console.log(`✅ Found correct customer: ${customerData.name} with BOL: ${customerData.bol}`);
+            console.log(`✅ Found correct customer: ${customerData.name} with BOL: ${customerData.bol} on vessel ${vessel} voyage ${actualVoyage}`);
             
             // Update local data immediately
             customerData.tasks[taskId] = newStatus;
@@ -1129,19 +1142,40 @@
             // Process queue
             processTaskUpdateQueue();
             
-            // Refresh UI - now includes BOL with proper encoding
+            // Refresh UI
             const safeBol = encodeURIComponent(bol);
             const customerId = `${vessel}|${customer}|${safeBol}`;
             refreshCustomerTasks(customerId);
             updateStatsOnly();
         }
 
+        // FIXED: refreshCustomerTasks with vessel+voyage lookup
         function refreshCustomerTasks(customerId) {
             const [vessel, customer, encodedBol] = customerId.split('|');
             const bol = decodeURIComponent(encodedBol);
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            // FIXED: Find customer by BOL number
+            
+            // Find vessel data by matching both vessel name AND the customer's BOL
+            let vesselData = null;
+            for (let v of vesselsData) {
+                const hasCustomer = v.customers.some(c => c.bol === bol);
+                if (v.vessel === vessel && hasCustomer) {
+                    vesselData = v;
+                    break;
+                }
+            }
+            
+            if (!vesselData) {
+                console.error(`❌ Cannot find vessel ${vessel} with customer BOL ${bol}`);
+                return;
+            }
+            
+            // Find customer by BOL number
             const customerData = vesselData.customers.find(c => c.bol === bol);
+            
+            if (!customerData) {
+                console.error(`❌ Cannot find customer with BOL ${bol}`);
+                return;
+            }
             
             const tasksContainer = document.getElementById(`tasks-${customerId}`);
             if (tasksContainer) {
@@ -1159,7 +1193,7 @@
                     tasksHeader.style.color = '#28a745';
                 }
 
-                // Update paid badge when task 13 changes (was task 12)
+                // Update paid badge when task 13 changes
                 const paidBadge = tasksContainer.closest('.customer-card').querySelector('.paid-badge');
                 if (paidBadge) {
                     paidBadge.className = `paid-badge ${getPaidClass(customerData.tasks)}`;
@@ -1365,12 +1399,33 @@
             return true;
         }
 
+        // FIXED: renderCustomerTasks with vessel+voyage lookup
         function renderCustomerTasks(container, customerId, showAll = false) {
             const [vessel, customer, encodedBol] = customerId.split('|');
             const bol = decodeURIComponent(encodedBol);
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
-            // FIXED: Find customer by BOL number
+            
+            // Find vessel data by matching both vessel name AND the customer's BOL
+            let vesselData = null;
+            for (let v of vesselsData) {
+                const hasCustomer = v.customers.some(c => c.bol === bol);
+                if (v.vessel === vessel && hasCustomer) {
+                    vesselData = v;
+                    break;
+                }
+            }
+            
+            if (!vesselData) {
+                console.error(`❌ Cannot find vessel ${vessel} with customer BOL ${bol}`);
+                return;
+            }
+            
+            // Find customer by BOL number
             const customerData = vesselData.customers.find(c => c.bol === bol);
+            
+            if (!customerData) {
+                console.error(`❌ Cannot find customer with BOL ${bol}`);
+                return;
+            }
             
             const tasksToShow = showAll ? 
                 getAllTasks(customerData.tasks) : 
@@ -1398,7 +1453,7 @@
                 taskElement.className = `task-item ${cssStatus}`;
                 taskElement.onclick = () => {
                     const newStatus = cycleTaskStatus(status, taskId);
-                    // FIXED: Pass BOL number to updateTaskStatus
+                    // Pass BOL number to updateTaskStatus
                     updateTaskStatus(vessel, customer, bol, taskId, newStatus);
                 };
                 
@@ -1408,7 +1463,7 @@
                     displayStatus = status.replace(/-/g, ' ').toUpperCase();
                 }
 
-                // UPDATED: Use custom task description based on customer data
+                // Use custom task description based on customer data
                 const taskDescription = getTaskDescription(taskId, customerData);
                 const formattedDescription = taskDescription.replace(/\n/g, '<br>');
                 
@@ -1426,11 +1481,21 @@
             });
         }
 
+        // FIXED: updateETA with vessel+voyage lookup
         function updateETA(vessel, customerName, blNo, newETA) {
             try {
-                const vesselData = vesselsData.find(v => v.vessel === vessel);
+                // Find vessel data by matching both vessel name AND the customer's BOL
+                let vesselData = null;
+                for (let v of vesselsData) {
+                    const hasCustomer = v.customers.some(c => c.bol === blNo);
+                    if (v.vessel === vessel && hasCustomer) {
+                        vesselData = v;
+                        break;
+                    }
+                }
+                
                 if (vesselData) {
-                    // FIXED: Find customer by BOL number
+                    // Find customer by BOL number
                     const customerData = vesselData.customers.find(c => c.bol === blNo);
                     if (customerData) {
                         const oldETA = customerData.eta;
@@ -1501,7 +1566,7 @@
             }
         }
 
-        // ADDED: Function to check if ETA is urgent (today or earlier)
+        // Function to check if ETA is urgent (today or earlier)
         function isETAUrgent(etaDate) {
             if (!etaDate) return false;
             const today = new Date();
@@ -1510,7 +1575,7 @@
             return eta <= today;
         }
 
-        // ADDED: Count urgent tasks for a customer
+        // Count urgent tasks for a customer
         function countUrgentTasks(customerTasks, customerETA) {
             if (!isETAUrgent(customerETA)) return 0;
             
@@ -1532,7 +1597,7 @@
             return urgentCount;
         }
 
-        // ADDED: Count urgent tasks for a vessel
+        // Count urgent tasks for a vessel
         function countVesselUrgentTasks(vessel) {
             let urgentCount = 0;
             const customersToCount = vessel.filteredCustomers || vessel.customers;
@@ -1680,7 +1745,7 @@
             }, 0);
             const arrivingThisWeek = countArrivingThisWeek(filteredVessels);
             
-            // UPDATED: Calculate urgent tasks (ETA today or earlier with incomplete tasks)
+            // Calculate urgent tasks (ETA today or earlier with incomplete tasks)
             let urgentTasks = 0;
             filteredVessels.forEach(vessel => {
                 const customersToCount = vessel.filteredCustomers || vessel.customers;
@@ -1692,7 +1757,7 @@
             document.getElementById('totalVessels').textContent = totalVessels;
             document.getElementById('totalCustomers').textContent = totalCustomers;
             document.getElementById('arrivingThisWeek').textContent = arrivingThisWeek;
-            document.getElementById('urgentTasks').textContent = urgentTasks; // UPDATED: Changed from pendingTasks
+            document.getElementById('urgentTasks').textContent = urgentTasks;
         }
 
         function populateFilters() {
@@ -1762,11 +1827,20 @@
             }
         }
 
-        // UPDATED: Enhanced customer field update with Google Sheets saving using BL_No
+        // FIXED: updateCustomerField with vessel+voyage lookup
         function updateCustomerField(vessel, customerName, blNo, field, value) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            // Find vessel data by matching both vessel name AND the customer's BOL
+            let vesselData = null;
+            for (let v of vesselsData) {
+                const hasCustomer = v.customers.some(c => c.bol === blNo);
+                if (v.vessel === vessel && hasCustomer) {
+                    vesselData = v;
+                    break;
+                }
+            }
+            
             if (vesselData) {
-                // FIXED: Find customer by BOL number
+                // Find customer by BOL number
                 const customerData = vesselData.customers.find(c => c.bol === blNo);
                 if (customerData) {
                     customerData[field] = value;
@@ -1778,11 +1852,20 @@
             }
         }
 
-        // UPDATED: Enhanced inland status toggle with Google Sheets saving using BL_No
+        // FIXED: toggleInlandStatus with vessel+voyage lookup
         function toggleInlandStatus(vessel, customerName, blNo) {
-            const vesselData = vesselsData.find(v => v.vessel === vessel);
+            // Find vessel data by matching both vessel name AND the customer's BOL
+            let vesselData = null;
+            for (let v of vesselsData) {
+                const hasCustomer = v.customers.some(c => c.bol === blNo);
+                if (v.vessel === vessel && hasCustomer) {
+                    vesselData = v;
+                    break;
+                }
+            }
+            
             if (vesselData) {
-                // FIXED: Find customer by BOL number
+                // Find customer by BOL number
                 const customerData = vesselData.customers.find(c => c.bol === blNo);
                 if (customerData) {
                     customerData.inland = cycleInlandStatus(customerData.inland);
@@ -1799,7 +1882,7 @@
                         const inlandBadge = customerCard.querySelector('.inland-badge');
                         if (inlandBadge) {
                             inlandBadge.className = `inland-badge ${getInlandClass(customerData.inland)}`;
-                            inlandBadge.textContent = `Inland: ${getInlandDisplay(customerData.inland)}`;
+                            inlandBadge.textContent = getInlandDisplay(customerData.inland);
                         }
                     }
                     
@@ -1833,7 +1916,7 @@
                 vesselCard.className = 'vessel-card';
                 
                 const vesselETA = getVesselETARange(vessel);
-                const vesselUrgentTasks = countVesselUrgentTasks(vessel); // ADDED: Count urgent tasks for vessel
+                const vesselUrgentTasks = countVesselUrgentTasks(vessel);
                 
                 vesselCard.innerHTML = `
                     <div class="vessel-header" onclick="toggleVessel(this)">
@@ -1847,7 +1930,6 @@
                     </div>
                     <div class="vessel-content">
                         ${sortedCustomers.map(customer => {
-                            // FIXED: Include BOL in customerId with safe encoding
                             const safeBol = encodeURIComponent(customer.bol || '');
                             const customerId = `${vessel.vessel}|${customer.name}|${safeBol}`;
                             const nextTasks = getNextTasks(customer.tasks, 3);
@@ -1924,7 +2006,6 @@
                 }
                 
                 sortedCustomers.forEach(customer => {
-                    // FIXED: Include BOL in customerId with safe encoding
                     const safeBol = encodeURIComponent(customer.bol || '');
                     const customerId = `${vessel.vessel}|${customer.name}|${safeBol}`;
                     const tasksContainer = document.getElementById(`tasks-${customerId}`);
