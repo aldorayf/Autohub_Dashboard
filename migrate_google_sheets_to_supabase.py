@@ -17,9 +17,9 @@ SUPABASE_URL = "YOUR_SUPABASE_URL"
 SUPABASE_KEY = "YOUR_SUPABASE_SERVICE_ROLE_KEY"  # Use service role key for admin operations
 
 # CSV file paths (export from Google Sheets)
-MANIFEST_CSV = "Manifest_Data.csv"
-CUSTOMER_DETAILS_CSV = "Customer_Details.csv"
-TASK_STATUS_CSV = "Task_Status.csv"
+MANIFEST_CSV = "AutoHub Vessel Management - Manifest_Data.csv"
+CUSTOMER_DETAILS_CSV = "AutoHub Vessel Management - Customer_Details.csv"
+TASK_STATUS_CSV = "AutoHub Vessel Management - Task_Status.csv"
 
 # =====================================================
 # INITIALIZE SUPABASE CLIENT
