@@ -1,7 +1,7 @@
 // Supabase Configuration
 // Replace these with your actual Supabase project credentials
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://lmklxusmjrkrceveuzvb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxta2x4dXNtanJrcmNldmV1enZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MDg2ODYsImV4cCI6MjA3OTE4NDY4Nn0.Sumu-c7KPm70uZErHYh4q4bxi-x8_-DHe5inL49V_ac';
 
 // Initialize Supabase client
 // Note: Make sure to include Supabase JS library before this script:
