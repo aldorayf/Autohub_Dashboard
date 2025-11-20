@@ -146,6 +146,38 @@
             60%, 100% { content: '...'; }
         }
 
+        .forgot-password {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .forgot-password a {
+            color: #dc3545;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .forgot-password a:hover {
+            color: #c82333;
+            text-decoration: underline;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
         @media (max-width: 480px) {
             .login-container {
                 padding: 30px 20px;
@@ -169,6 +201,7 @@
         </div>
 
         <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
 
         <form id="loginForm">
             <div class="form-group">
@@ -200,6 +233,10 @@
             </button>
         </form>
 
+        <div class="forgot-password">
+            <a href="#" id="forgotPasswordLink">Forgot Password?</a>
+        </div>
+
         <div id="loadingMessage" class="loading" style="display: none;">
             Signing in
         </div>
@@ -215,7 +252,9 @@
         const passwordInput = document.getElementById('password');
         const loginButton = document.getElementById('loginButton');
         const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
         const loadingMessage = document.getElementById('loadingMessage');
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
 
         // Check if user is already logged in
         async function checkExistingSession() {
@@ -307,6 +346,54 @@
         passwordInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 loginForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // Handle forgot password
+        forgotPasswordLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const email = emailInput.value.trim();
+
+            if (!email) {
+                errorMessage.textContent = 'Please enter your email address first.';
+                errorMessage.classList.add('show');
+                successMessage.classList.remove('show');
+                emailInput.focus();
+                return;
+            }
+
+            // Clear previous messages
+            errorMessage.classList.remove('show');
+            successMessage.classList.remove('show');
+
+            // Disable link during request
+            forgotPasswordLink.style.pointerEvents = 'none';
+            forgotPasswordLink.textContent = 'Sending...';
+
+            try {
+                const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin + '/login.html'
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                // Show success message
+                successMessage.textContent = 'Password reset email sent! Please check your inbox.';
+                successMessage.classList.add('show');
+                emailInput.value = '';
+                passwordInput.value = '';
+
+            } catch (error) {
+                console.error('Password reset error:', error);
+                errorMessage.textContent = 'Failed to send password reset email. Please try again.';
+                errorMessage.classList.add('show');
+            } finally {
+                // Re-enable link
+                forgotPasswordLink.style.pointerEvents = 'auto';
+                forgotPasswordLink.textContent = 'Forgot Password?';
             }
         });
     </script>
