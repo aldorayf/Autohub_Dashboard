@@ -13,13 +13,13 @@ from supabase import create_client, Client
 # CONFIGURATION
 # =====================================================
 # Replace with your Supabase credentials
-SUPABASE_URL = "YOUR_SUPABASE_URL"
-SUPABASE_KEY = "YOUR_SUPABASE_SERVICE_ROLE_KEY"  # Use service role key for admin operations
+SUPABASE_URL = "https://lmklxusmjrkrceveuzvb.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxta2x4dXNtanJrcmNldmV1enZiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzYwODY4NiwiZXhwIjoyMDc5MTg0Njg2fQ.TkHWQtif9G3VK0Ts5iQx3FM2h9wqSZLBBGcCljvOF4E"  # Use service role key for admin operations
 
 # CSV file paths (export from Google Sheets)
-MANIFEST_CSV = "Manifest_Data.csv"
-CUSTOMER_DETAILS_CSV = "Customer_Details.csv"
-TASK_STATUS_CSV = "Task_Status.csv"
+MANIFEST_CSV = "AutoHub Vessel Management - Manifest_Data.csv"
+CUSTOMER_DETAILS_CSV = "AutoHub Vessel Management - Customer_Details.csv"
+TASK_STATUS_CSV = "AutoHub Vessel Management - Task_Status.csv"
 
 # =====================================================
 # INITIALIZE SUPABASE CLIENT
@@ -116,7 +116,7 @@ vessels_map = {}
 
 for row in manifest_data:
     vessel_name = row.get('Vessel', '').strip()
-    voyage_number = row.get('Voy', '').strip()
+    voyage_number = row.get('Voy.', '').strip()  # Column name has a period
     ets = parse_date(row.get('ETS', ''))
 
     if not vessel_name or not voyage_number:
