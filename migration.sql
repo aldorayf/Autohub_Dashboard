@@ -1217,7 +1217,7 @@ ON CONFLICT (customer_id) DO UPDATE SET
 
 -- Vessel 10: HOEGH TARGET (Voyage 57)
 INSERT INTO vessels (vessel_name, voyage_number, ets)
-VALUES ('HOEGH TARGET', '57', '25-05-23')
+VALUES ('HOEGH TARGET', '57', '2025-05-23')
 ON CONFLICT (vessel_name, voyage_number) DO UPDATE SET ets = EXCLUDED.ets;
 
 -- Customer: KHOA VO

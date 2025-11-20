@@ -14,22 +14,40 @@ CUSTOMER_DETAILS_CSV = "AutoHub Vessel Management - Customer_Details.csv"
 TASK_STATUS_CSV = "AutoHub Vessel Management - Task_Status.csv"
 
 def parse_date(date_str):
-    """Parse date in DD/MM/YYYY format to YYYY-MM-DD"""
+    """Parse date in various formats to YYYY-MM-DD"""
     if not date_str or date_str.strip() == '':
         return None
 
     try:
+        date_str = date_str.strip()
+
+        # Handle DD/MM/YYYY or DD/MM/YY
         if '/' in date_str:
             parts = date_str.split('/')
             if len(parts) == 3:
                 day, month, year = parts
+                # Handle 2-digit year
+                if len(year) == 2:
+                    year = '20' + year if int(year) < 50 else '19' + year
                 return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
 
-        if '-' in date_str and len(date_str) == 10:
-            return date_str
+        # Handle DD-MM-YYYY or DD-MM-YY
+        if '-' in date_str:
+            parts = date_str.split('-')
+            if len(parts) == 3:
+                # Check if already in YYYY-MM-DD format
+                if len(parts[0]) == 4:
+                    return date_str
+                # Otherwise assume DD-MM-YYYY or DD-MM-YY
+                day, month, year = parts
+                # Handle 2-digit year
+                if len(year) == 2:
+                    year = '20' + year if int(year) < 50 else '19' + year
+                return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
 
         return None
     except Exception as e:
+        print(f"⚠️  Warning: Could not parse date '{date_str}': {e}")
         return None
 
 def escape_sql(value):
