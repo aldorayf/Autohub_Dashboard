@@ -8229,7 +8229,7 @@ ON CONFLICT (customer_id) DO UPDATE SET
 
 -- Vessel 44: CATTLEYA ACE (Voyage 107A)
 INSERT INTO vessels (vessel_name, voyage_number, ets)
-VALUES ('CATTLEYA ACE', '107A', '2025-22-19')
+VALUES ('CATTLEYA ACE', '107A', NULL)
 ON CONFLICT (vessel_name, voyage_number) DO UPDATE SET ets = EXCLUDED.ets;
 
 -- Customer: NEAL PEARSON A

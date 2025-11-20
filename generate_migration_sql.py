@@ -29,20 +29,61 @@ def parse_date(date_str):
                 # Handle 2-digit year
                 if len(year) == 2:
                     year = '20' + year if int(year) < 50 else '19' + year
+                # Validate month and day
+                month_int = int(month)
+                day_int = int(day)
+                if month_int > 12 or month_int < 1:
+                    return None
+                if day_int > 31 or day_int < 1:
+                    return None
                 return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
 
-        # Handle DD-MM-YYYY or DD-MM-YY
+        # Handle dates with dashes
         if '-' in date_str:
             parts = date_str.split('-')
             if len(parts) == 3:
                 # Check if already in YYYY-MM-DD format
                 if len(parts[0]) == 4:
+                    # Validate it's a proper date
+                    year, month, day = parts
+                    month_int = int(month)
+                    day_int = int(day)
+                    if month_int > 12 or month_int < 1 or day_int > 31 or day_int < 1:
+                        return None
                     return date_str
-                # Otherwise assume DD-MM-YYYY or DD-MM-YY
-                day, month, year = parts
+
+                # Try DD-MM-YY or DD-MM-YYYY
+                p1, p2, p3 = parts
+                p1_int = int(p1)
+                p2_int = int(p2)
+
+                # If p2 > 12, then it must be day, so format is MM-DD-YY
+                if p2_int > 12:
+                    month = p1
+                    day = p2
+                    year = p3
+                # If p1 > 12, then it must be day, so format is DD-MM-YY
+                elif p1_int > 12:
+                    day = p1
+                    month = p2
+                    year = p3
+                # Both are <= 12, assume DD-MM-YY (European format)
+                else:
+                    day = p1
+                    month = p2
+                    year = p3
+
                 # Handle 2-digit year
                 if len(year) == 2:
                     year = '20' + year if int(year) < 50 else '19' + year
+
+                # Final validation
+                month_int = int(month)
+                day_int = int(day)
+                if month_int > 12 or month_int < 1 or day_int > 31 or day_int < 1:
+                    print(f"⚠️  Warning: Invalid date '{date_str}' - month={month_int}, day={day_int}")
+                    return None
+
                 return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
 
         return None
