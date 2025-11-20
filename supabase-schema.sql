@@ -1,9 +1,6 @@
 -- AutoHub Dashboard - Supabase Database Schema
 -- Run this script in your Supabase SQL Editor to set up the database
 
--- Enable Row Level Security (RLS) by default
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret';
-
 -- =====================================================
 -- 1. USERS TABLE (for authentication and user management)
 -- =====================================================
