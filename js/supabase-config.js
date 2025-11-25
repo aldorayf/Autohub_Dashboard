@@ -24,13 +24,24 @@ async function checkAdmin() {
     const user = await checkAuth();
     if (!user) return false;
 
-    const { data, error } = await supabaseClient
-        .from('users')
-        .select('role')
-        .eq('email', user.email)
-        .single();
+    try {
+        const { data, error } = await supabaseClient
+            .from('users')
+            .select('role')
+            .eq('email', user.email)
+            .single();
 
-    return data && data.role === 'admin';
+        if (error) {
+            console.error('Error checking admin status:', error);
+            // If users table doesn't exist or has issues, treat as non-admin
+            return false;
+        }
+
+        return data && data.role === 'admin';
+    } catch (err) {
+        console.error('Exception checking admin status:', err);
+        return false;
+    }
 }
 
 // Sign out
@@ -48,16 +59,21 @@ async function getCurrentUserProfile() {
     const user = await checkAuth();
     if (!user) return null;
 
-    const { data, error } = await supabaseClient
-        .from('users')
-        .select('*')
-        .eq('email', user.email)
-        .single();
+    try {
+        const { data, error } = await supabaseClient
+            .from('users')
+            .select('*')
+            .eq('email', user.email)
+            .single();
 
-    if (error) {
-        console.error('Error fetching user profile:', error);
+        if (error) {
+            console.error('Error fetching user profile:', error);
+            return null;
+        }
+
+        return data;
+    } catch (err) {
+        console.error('Exception fetching user profile:', err);
         return null;
     }
-
-    return data;
 }
