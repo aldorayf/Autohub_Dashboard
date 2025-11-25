@@ -617,6 +617,16 @@
                 return;
             }
 
+            // Validate Excel has required columns
+            const firstRow = parsedData[0];
+            const hasVessel = firstRow.Vessel || firstRow.vessel;
+            const hasVoyage = firstRow['Voy.'] || firstRow.Voyage || firstRow.voyage;
+
+            if (!hasVessel || !hasVoyage) {
+                showAlert('Excel file is missing required columns: Vessel and Voyage number. Please check your file format.', 'danger');
+                return;
+            }
+
             const uploadButton = document.getElementById('uploadButton');
             uploadButton.disabled = true;
             uploadButton.textContent = 'Importing...';
@@ -625,6 +635,7 @@
                 // Group by vessel and voyage
                 const vesselGroups = {};
                 let totalSkipped = 0;
+                let totalErrors = 0;
 
                 parsedData.forEach(row => {
                     const vesselName = row.Vessel || row.vessel;
@@ -659,7 +670,11 @@
                         .select()
                         .single();
 
-                    if (vesselError) throw vesselError;
+                    if (vesselError) {
+                        console.error('❌ Error creating vessel:', group.vesselName, vesselError);
+                        totalErrors++;
+                        continue;
+                    }
 
                     // Insert customers
                     for (const customer of group.customers) {
@@ -704,37 +719,91 @@
                             .single();
 
                         if (customerError) {
-                            console.error('Error inserting customer:', customerError);
+                            console.error('❌ Error inserting customer:', customerName, customerError);
+                            totalErrors++;
                             continue;
                         }
 
-                        // Create tasks record
-                        await supabaseClient
+                        // Check if tasks record already exists
+                        const { data: existingTask, error: checkError } = await supabaseClient
                             .from('tasks')
-                            .upsert({
-                                customer_id: customerData.id
-                            }, {
-                                onConflict: 'customer_id'
-                            });
+                            .select('id')
+                            .eq('customer_id', customerData.id)
+                            .maybeSingle();
+
+                        if (checkError) {
+                            console.error('❌ Error checking existing tasks:', checkError);
+                        }
+
+                        // Only create tasks record if it doesn't exist
+                        // This prevents overwriting existing task statuses when re-importing
+                        if (!existingTask) {
+                            const { error: tasksError } = await supabaseClient
+                                .from('tasks')
+                                .insert({
+                                    customer_id: customerData.id,
+                                    review_customer_docs: 'incomplete',
+                                    file_single_entry_bond: 'incomplete',
+                                    isf_transmit: 'incomplete',
+                                    isf_match: 'incomplete',
+                                    entry_created: 'incomplete',
+                                    inland_confirm: 'incomplete',
+                                    update_betrix_transport: 'incomplete',
+                                    awis_invoice: 'incomplete',
+                                    noa_received: 'NOT RECEIVED',
+                                    noa_accounting: 'incomplete',
+                                    bitrix_eta: 'incomplete',
+                                    arrival_email: 'incomplete',
+                                    payment_check: 'UNPAID',
+                                    entry_transmitted: 'incomplete',
+                                    cbp_release: 'incomplete',
+                                    ssl_request: 'incomplete',
+                                    ssl_confirmed: 'incomplete',
+                                    release_notification: 'incomplete',
+                                    upload_release_docs: 'incomplete',
+                                    customs_clear_bitrix: 'incomplete',
+                                    reg_docs_cbp: 'incomplete',
+                                    reg_docs_bitrix: 'incomplete'
+                                });
+
+                            if (tasksError) {
+                                console.error('❌ Error creating tasks for customer:', customerName, tasksError);
+                                totalErrors++;
+                                // Don't throw - continue with other customers
+                            } else {
+                                console.log(`✅ Created tasks record for ${customerName}`);
+                            }
+                        } else {
+                            console.log(`ℹ️ Tasks record already exists for ${customerName}, skipping task creation to preserve existing statuses`);
+                        }
                     }
 
                 }
 
-                const totalImported = parsedData.length - totalSkipped;
-                if (totalSkipped > 0) {
-                    showAlert(`Imported ${totalImported} records. ${totalSkipped} rows skipped - check browser console (F12) for details.`, 'warning');
-                    console.error(`\n📊 Summary: ${totalImported} imported, ${totalSkipped} skipped. Open console to see which rows were skipped and why.`);
+                const totalProcessed = parsedData.length;
+                const totalImported = totalProcessed - totalSkipped - totalErrors;
+
+                if (totalSkipped > 0 || totalErrors > 0) {
+                    showAlert(`Import complete: ${totalImported} successful, ${totalSkipped} skipped (missing data), ${totalErrors} errors. Check console (F12) for details.`, totalErrors > 0 ? 'danger' : 'warning');
+                    console.error(`\n📊 Import Summary:\n✅ Successful: ${totalImported}\n⚠️ Skipped (missing required fields): ${totalSkipped}\n❌ Errors: ${totalErrors}\nOpen console to see details.`);
                 } else {
                     showAlert(`Successfully imported ${totalImported} records!`, 'success');
                 }
 
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
+                // Only redirect if import was successful or had minor issues
+                if (totalErrors === 0) {
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 2000);
+                } else {
+                    // Re-enable button if there were errors so user can try again
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Import Data';
+                }
 
             } catch (error) {
-                console.error('Upload error:', error);
-                showAlert('Error uploading data: ' + error.message, 'danger');
+                console.error('❌ Critical upload error:', error);
+                showAlert('Critical error during upload: ' + error.message + '. Please check console for details.', 'danger');
                 uploadButton.disabled = false;
                 uploadButton.textContent = 'Import Data';
             }
