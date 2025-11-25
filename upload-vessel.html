@@ -538,13 +538,20 @@
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
+                    const workbook = XLSX.read(data, {
+                        type: 'array',
+                        cellDates: true,  // Parse dates as Date objects
+                        dateNF: 'yyyy-mm-dd'  // Date number format
+                    });
 
                     // Get first sheet
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
 
-                    // Convert to JSON
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    // Convert to JSON with raw values for better date handling
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
+                        raw: false,  // Don't use raw values, format them
+                        dateNF: 'yyyy-mm-dd'  // Format dates as ISO
+                    });
 
                     if (jsonData.length === 0) {
                         showAlert('The Excel file appears to be empty', 'warning');
@@ -695,13 +702,52 @@
                             continue;
                         }
 
-                        // Parse ETA date (handle DD/MM/YYYY format)
-                        let parsedETA = eta;
-                        if (typeof eta === 'string' && eta.includes('/')) {
-                            const parts = eta.split('/');
-                            if (parts.length === 3) {
-                                parsedETA = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                        // Parse ETA date (handle various Excel date formats)
+                        let parsedETA = null;
+
+                        if (eta instanceof Date) {
+                            // Already a Date object
+                            parsedETA = eta.toISOString().split('T')[0];
+                        } else if (typeof eta === 'number') {
+                            // Excel serial date number - convert to date
+                            const excelEpoch = new Date(1899, 11, 30);
+                            const msPerDay = 86400000;
+                            const date = new Date(excelEpoch.getTime() + (eta * msPerDay));
+                            parsedETA = date.toISOString().split('T')[0];
+                        } else if (typeof eta === 'string') {
+                            // Handle string dates
+                            if (eta.includes('/')) {
+                                // DD/MM/YYYY or MM/DD/YYYY format
+                                const parts = eta.split('/');
+                                if (parts.length === 3) {
+                                    // Try DD/MM/YYYY first (common in international formats)
+                                    const day = parts[0].padStart(2, '0');
+                                    const month = parts[1].padStart(2, '0');
+                                    const year = parts[2];
+                                    parsedETA = `${year}-${month}-${day}`;
+                                }
+                            } else if (eta.includes('-')) {
+                                // Already in YYYY-MM-DD or similar format
+                                parsedETA = eta;
+                            } else {
+                                // Try to parse as date
+                                const date = new Date(eta);
+                                if (!isNaN(date.getTime())) {
+                                    parsedETA = date.toISOString().split('T')[0];
+                                }
                             }
+                        }
+
+                        // Validate the parsed date
+                        if (!parsedETA || isNaN(new Date(parsedETA).getTime())) {
+                            console.error('❌ Skipping row - Invalid ETA date:', {
+                                customerName,
+                                originalETA: eta,
+                                parsedETA,
+                                etaType: typeof eta
+                            });
+                            totalSkipped++;
+                            continue;
                         }
 
                         const { data: customerData, error: customerError } = await supabaseClient
