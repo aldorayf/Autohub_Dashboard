@@ -624,6 +624,7 @@
             try {
                 // Group by vessel and voyage
                 const vesselGroups = {};
+                let totalSkipped = 0;
 
                 parsedData.forEach(row => {
                     const vesselName = row.Vessel || row.vessel;
@@ -662,13 +663,20 @@
 
                     // Insert customers
                     for (const customer of group.customers) {
-                        const blNumber = customer['House No.'] || customer.BL_No || customer['BL No.'] || customer.BOL || customer.bol;
-                        const customerName = customer.Customer || customer.customer;
-                        const pod = customer.Port || customer.port || customer.POD;
-                        const eta = customer.ETA || customer.eta;
+                        const blNumber = customer['House No.'] || customer['BL No.'] || customer.BL_No || customer['BL No'] || customer.BOL || customer.bol || customer['Ref No.'];
+                        const customerName = customer.Customer || customer.customer || customer.Name || customer.name;
+                        const pod = customer.Port || customer.port || customer.POD || customer.pod;
+                        const eta = customer.ETA || customer.eta || customer.Est;
 
                         if (!blNumber || !customerName || !pod || !eta) {
-                            console.warn('Skipping row with missing required fields:', customer);
+                            console.error('❌ Skipping row - Missing required fields:', {
+                                customerName: customerName || 'MISSING',
+                                blNumber: blNumber || 'MISSING',
+                                pod: pod || 'MISSING',
+                                eta: eta || 'MISSING',
+                                availableFields: Object.keys(customer)
+                            });
+                            totalSkipped++;
                             continue;
                         }
 
@@ -709,9 +717,16 @@
                                 onConflict: 'customer_id'
                             });
                     }
+
                 }
 
-                showAlert(`Successfully imported ${parsedData.length} records!`, 'success');
+                const totalImported = parsedData.length - totalSkipped;
+                if (totalSkipped > 0) {
+                    showAlert(`Imported ${totalImported} records. ${totalSkipped} rows skipped - check browser console (F12) for details.`, 'warning');
+                    console.error(`\n📊 Summary: ${totalImported} imported, ${totalSkipped} skipped. Open console to see which rows were skipped and why.`);
+                } else {
+                    showAlert(`Successfully imported ${totalImported} records!`, 'success');
+                }
 
                 setTimeout(() => {
                     window.location.href = 'index.html';
