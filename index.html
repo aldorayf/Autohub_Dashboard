@@ -779,9 +779,9 @@
             { id: 15, name: "CBP Release", description: "Obtain customs release" },
             { id: 16, name: "Request SSL/Terminal Release/LFD", description: "Vessel must have arrived prior to requesting" },
             { id: 17, name: "SSL/Terminal Release Confirmed", description: "Confirm release from SSL and terminal" },
-            { id: 18, name: "Release Notification to Customer or Transcar", description: "Notify customer of cargo release" },
-            { id: 19, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
-            { id: 20, name: "Mark Customs Clear in Bitrix", description: "Update customs clearance status" },
+            { id: 18, name: "Check AHJP Release Status / Mark Customs Clear in Bitrix", description: "Check Agent and AHJP release in Betrix before Releasing Shipment" },
+            { id: 19, name: "Release Notification to Customer or Transcar", description: "Notify customer of cargo release" },
+            { id: 20, name: "Upload Release Docs to Bitrix", description: "Upload release documents to customer portal" },
             { id: 21, name: "REG Docs to CBP for Stamp", description: "Submit registration documents for stamping" },
             { id: 22, name: "REG Docs Uploaded to Bitrix", description: "Upload stamped registration documents" }
         ];
@@ -846,9 +846,9 @@
                 15: 'cbp_release',               // was task 14
                 16: 'ssl_request',               // was task 15
                 17: 'ssl_confirmed',             // was task 16
-                18: 'release_notification',      // was task 17
-                19: 'upload_release_docs',       // was task 18
-                20: 'customs_clear_bitrix',      // was task 19
+                18: 'customs_clear_bitrix',      // Check AHJP Release Status / Mark Customs Clear
+                19: 'release_notification',      // Release Notification to Customer or Transcar
+                20: 'upload_release_docs',       // Upload Release Docs to Bitrix
                 21: 'reg_docs_cbp',              // was task 20
                 22: 'reg_docs_bitrix'            // was task 21
             };
