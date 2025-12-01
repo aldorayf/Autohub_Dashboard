@@ -809,9 +809,9 @@
                     const requestByDate = getDateXDaysBefore(customerData.eta, 5);
                     return `${task.description}\nRequest by ${formatDate(requestByDate)}`;
                 
-                case 18: // Release Notification (was task 17)
+                case 19: // Release Notification to Customer or Transcar
                     return "If no INLAND send to customer - If INLAND send to Transcar with Trucking Spreadsheet";
-                
+
                 default:
                     return task.description;
             }
