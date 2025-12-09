@@ -528,6 +528,31 @@
             margin-top: 0.2rem;
         }
 
+        .delete-btn {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .delete-btn:hover {
+            background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
+            transform: scale(1.05);
+        }
+
+        .customer-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #dee2e6;
+        }
+
         /* Compact table view for better information density */
         .customer-compact {
             display: grid;
@@ -1854,6 +1879,44 @@
             }
         }
 
+        // Delete importer (customer) with confirmation
+        async function deleteImporter(vessel, customerName, blNo) {
+            // Show confirmation dialog
+            const confirmed = confirm(`Are you sure you want to delete this importer?\n\nCustomer: ${customerName}\nBL#: ${blNo}\n\nThis action cannot be undone.`);
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                // Call the delete function from supabase-data.js
+                await deleteCustomer(blNo);
+
+                // Remove from local data
+                for (let v of vesselsData) {
+                    if (v.vessel === vessel) {
+                        const customerIndex = v.customers.findIndex(c => c.bol === blNo);
+                        if (customerIndex !== -1) {
+                            v.customers.splice(customerIndex, 1);
+                            console.log(`✅ Removed ${customerName} from local data`);
+                            break;
+                        }
+                    }
+                }
+
+                // Refresh the dashboard
+                renderDashboard();
+                updateStatsOnly();
+
+                // Show success message
+                alert(`Successfully deleted importer: ${customerName}`);
+
+            } catch (error) {
+                console.error('❌ Error deleting importer:', error);
+                alert(`Error deleting importer: ${error.message}`);
+            }
+        }
+
         // FIXED: toggleInlandStatus with vessel+voyage lookup
         function toggleInlandStatus(vessel, customerName, blNo) {
             // Find vessel data by matching both vessel name AND the customer's BOL
@@ -1987,6 +2050,9 @@
                                         <div class="tasks-grid" id="tasks-${customerId}">
                                             <!-- Tasks will be rendered here -->
                                         </div>
+                                    </div>
+                                    <div class="customer-actions">
+                                        <button class="delete-btn" onclick="event.stopPropagation(); deleteImporter('${vessel.vessel}', '${customer.name.replace(/'/g, "\\'")}', '${customer.bol}')">🗑️ Delete Importer</button>
                                     </div>
                                 </div>
                             `;

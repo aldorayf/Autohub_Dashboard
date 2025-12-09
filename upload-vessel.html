@@ -750,16 +750,35 @@
                             continue;
                         }
 
+                        // Check if customer already exists for this vessel (by bl_number)
+                        const { data: existingCustomer, error: checkCustomerError } = await supabaseClient
+                            .from('customers')
+                            .select('id')
+                            .eq('bl_number', blNumber)
+                            .eq('vessel_id', vesselData.id)
+                            .maybeSingle();
+
+                        if (checkCustomerError) {
+                            console.error('❌ Error checking existing customer:', checkCustomerError);
+                            totalErrors++;
+                            continue;
+                        }
+
+                        // If customer already exists, skip to preserve existing data
+                        if (existingCustomer) {
+                            console.log(`ℹ️ Customer ${customerName} (BL: ${blNumber}) already exists for this vessel, skipping to preserve existing data`);
+                            continue;
+                        }
+
+                        // Insert new customer (only if they don't already exist)
                         const { data: customerData, error: customerError } = await supabaseClient
                             .from('customers')
-                            .upsert({
+                            .insert({
                                 vessel_id: vesselData.id,
                                 customer_name: customerName,
                                 bl_number: blNumber,
                                 pod: pod,
                                 eta: parsedETA
-                            }, {
-                                onConflict: 'bl_number,vessel_id'
                             })
                             .select()
                             .single();

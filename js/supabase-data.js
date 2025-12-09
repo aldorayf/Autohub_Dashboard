@@ -146,6 +146,48 @@ async function updateCustomerETA(customerName, blNumber, newETA) {
     }
 }
 
+// Delete customer by BL number
+// This also deletes associated tasks due to CASCADE delete in database
+async function deleteCustomer(blNumber) {
+    try {
+        // First get the customer ID to delete associated tasks
+        const { data: customerData, error: customerError } = await supabaseClient
+            .from('customers')
+            .select('id')
+            .eq('bl_number', blNumber)
+            .single();
+
+        if (customerError) throw customerError;
+
+        // Delete tasks first (in case CASCADE isn't set up)
+        const { error: tasksError } = await supabaseClient
+            .from('tasks')
+            .delete()
+            .eq('customer_id', customerData.id);
+
+        if (tasksError) {
+            console.warn('Warning deleting tasks:', tasksError);
+            // Continue anyway - tasks might not exist
+        }
+
+        // Delete the customer
+        const { data, error } = await supabaseClient
+            .from('customers')
+            .delete()
+            .eq('bl_number', blNumber)
+            .select();
+
+        if (error) throw error;
+
+        console.log(`✅ Deleted customer with BL: ${blNumber}`);
+        return data;
+
+    } catch (error) {
+        console.error('Error deleting customer:', error);
+        throw error;
+    }
+}
+
 // =====================================================
 // TASKS
 // =====================================================
